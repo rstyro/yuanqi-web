@@ -1,6 +1,6 @@
 ### 一、前端项目构建
 - 前端的项目大致技术栈：Vite、vue3、TypeScript
-- 前提条件需要安装node.js，V版本直接：`20.18.0`
+- 前提条件需要安装node.js，Node.js版本：`20.18.0`
 - 全局安装vite命令 ：`npm install -g vite`
 - 我们需要创建一个Vite 的Vue项目
 - 执行命令：`npm init vite@latest` .
