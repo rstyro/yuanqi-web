@@ -1,0 +1,79 @@
+import {createRouter, createWebHashHistory, RouteRecordRaw} from 'vue-router'
+
+// 定义路由下的 meta 类型
+declare module 'vue-router'{
+    interface RouteMeta{
+        title:string
+    }
+}
+
+const routes:Array<RouteRecordRaw> = [     //主路由模块容器
+    {
+        path: '/',
+        redirect: '/index',
+    },
+    {
+        path: '/index',
+        name: 'index',
+        component: () => import("@/views/index.vue"),
+        meta:{
+            title:"测了个寂寞",
+            transition:'animate__zoomInDown'
+        }
+    },
+    {
+        path: '/bazi',
+        name: 'bazi',
+        component: () => import("@/views/bazi/home.vue"),
+        meta:{
+            title:"生辰八字",
+        }
+    },
+    {
+        path: '/search',
+        name: 'search',
+        component: () => import("@/views/search/index.vue"),
+        // meta:{
+        //     transition: 'animate__slideInUp'
+        // }
+    },
+    {
+        path: '/detail',
+        name: 'detail',
+        component: () => import("@/views/search/detail.vue"),
+        // meta:{
+        //     transition: 'animate__slideInUp'
+        // }
+    },
+    {
+        path: '/flyFlower',
+        name: 'flyFlower',
+        component: () => import("@/views/search/fly.vue"),
+        meta:{
+            title:"飞花令",
+        }
+    },
+    {
+        path: '/about',
+        name: 'about',
+        component: () => import("@/views/about/index.vue"),
+        meta:{
+            title:"关于我",
+        }
+    }
+]
+const router = createRouter({
+    history: createWebHashHistory(),
+    scrollBehavior:(to,from,savedPosition)=>{
+        if(savedPosition){
+            return savedPosition;
+        }else {
+            return {
+                top:0
+            }
+        }
+    },
+    routes
+})
+
+export default router
