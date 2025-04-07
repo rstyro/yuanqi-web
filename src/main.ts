@@ -6,12 +6,18 @@ import {NavigationGuardNext, RouteLocationNormalized} from "vue-router";
 import LoadingBar from './components/LoadingBar.vue';
 import {createPinia} from 'pinia';
 // 持久化存储pinia
-import piniaPluginPersist from 'pinia-plugin-persist'
+import piniaPluginPersist from 'pinia-plugin-persist';
+import ElementPlus from 'element-plus'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
 
 const store = createPinia()
 store.use(piniaPluginPersist)
 
-createApp(App).use(store).use(router).mount('#app')
+createApp(App)
+    .use(store)
+    .use(router)
+    .use(ElementPlus, {locale: zhCn})
+    .mount('#app')
 
 const vNode = createVNode(LoadingBar);
 render(vNode,document.body)

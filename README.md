@@ -147,7 +147,17 @@ export default defineConfig({
 </el-button>
 ```
 
+- **配置国际化**
+- Element Plus 组件 默认 使用英语
+- 修改`main.ts`,添加如下内容
+```ts
+import ElementPlus from 'element-plus'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
 
+app.use(ElementPlus, {
+    locale: zhCn,
+})
+```
 
 
 #### 3、配置页面路由
