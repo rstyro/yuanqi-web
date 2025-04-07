@@ -450,3 +450,8 @@ export const getSearchList =(dto:any)=>{
 - 自此接口就配置好了。
 - 自此前端的基本脚手架都搭建好了，接下来就是优化方面的了。
 
+
+### 二、对象创建复用
+- ts 对象创建
+- 新建：`/types/bazi.ts` 在文件中定义对象，使用`import { Pillar } from "@/types/bazi";` 引用具体的对象
+- 可以新建一个工具类，对上面定义的对象进行初始化，如：`basiUtils.ts`

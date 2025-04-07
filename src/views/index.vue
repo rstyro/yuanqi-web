@@ -22,7 +22,7 @@
           <span class="gradient-text">AI</span>
           <span>命理引擎</span>
         </h1>
-        <p class="subtitle">基于深度学习的命运推演系统</p>
+        <p class="subtitle"> 当《渊海子平》邂逅深度学习，千年命理智慧在数字世界焕发新生</p>
 
         <!-- 输入区域 -->
         <div class="input-group">
@@ -38,11 +38,6 @@
               <el-radio-button :label="0" class="control-btn"><Female style="width: 1.4em; height: 1.4em;color: palevioletred" /></el-radio-button>
             </el-radio-group>
 
-<!--            <el-radio-group v-model="form.sex" class="date-type">-->
-<!--              <el-radio-button :label="1" class="control-btn">男</el-radio-button>-->
-<!--              <el-radio-button :label="0" class="control-btn">女</el-radio-button>-->
-<!--            </el-radio-group>-->
-
             <!-- 定制化时间选择器 -->
             <div class="time-picker-wrapper">
               <el-date-picker
@@ -50,6 +45,8 @@
                   type="datetime"
                   placeholder="请选择您的生辰"
                   class="hologram-date-picker"
+                  format="YYYY-MM-DD HH:mm:ss"
+                  value-format="YYYY-MM-DD HH:mm:ss"
               />
               <div class="picker-glow"></div>
             </div>
@@ -71,7 +68,11 @@
         <!-- 特性展示 -->
         <div class="features">
           <div v-for="(item, index) in features" :key="index" class="feature">
-            <div class="feature-icon" :class="item.icon"></div>
+            <div v-if="item.icon=='taiji'" class="taiji">
+              <Taiji :size="60"  primary-color="#fff" secondary-color="#222"
+                  :duration="5" />
+            </div>
+            <div v-else class="feature-icon" :class="item.icon"></div>
             <div class="feature-text">
               <h3>{{ item.title }}</h3>
               <p>{{ item.desc }}</p>
@@ -88,20 +89,20 @@ import {ref, reactive, computed} from 'vue';
 import {useRouter} from 'vue-router';
 import {ArrowRight,Male,Female} from '@element-plus/icons-vue';
 
+import Taiji from "@/components/Taiji.vue";
+
 const router = useRouter();
 
 interface Form {
   dateType: number,
   sex: number,
   dateTime: Date | null,
-  defaultTime: Date
 }
 
 const form = reactive<Form>({
   dateType: 2,
   sex: 1,
   dateTime: null,
-  defaultTime: new Date(2000, 1, 1, 12, 0, 0)
 });
 
 const formValid = computed(() => form.dateTime !== null);
@@ -109,20 +110,20 @@ const formValid = computed(() => form.dateTime !== null);
 const submitForm = () => {
   if (formValid.value) {
     router.push({
-      name: 'report',
+      name: 'bazi',
       query: {
         dateType: form.dateType,
         sex: form.sex,
-        dateTime: form.dateTime?.toISOString() || ''
+        dateTime: form.dateTime
       }
     });
   }
 };
 
 const features = [
-  {icon: 'neural', title: '神经网络架构', desc: '多层卷积神经矩阵处理'},
-  {icon: 'quantum', title: '量子计算', desc: '支持量子位时间坐标解析'},
-  {icon: 'ai', title: '深度学习', desc: '1.2亿参数模型实时推算'}
+  {icon: 'taiji', title: '命理乾坤', desc: '八字精解，千年易学智慧触手可及'},
+  {icon: 'quantum', title: '大运流转', desc: '阴阳交汇处，遇见更好的自己'},
+  {icon: 'ai', title: '深度学习', desc: '解锁专属命盘解析，洞悉事业、姻缘、财富的天地玄机'}
 ];
 </script>
 
@@ -475,6 +476,12 @@ $deep-space: #020617;
     transform: translateY(-5px);
     border-color: $cyber-blue;
   }
+}
+
+.taiji{
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 1em;
 }
 
 .feature-icon {
