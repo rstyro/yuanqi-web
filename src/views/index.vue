@@ -128,6 +128,7 @@ const features = [
 </script>
 
 <style scoped lang="scss">
+
 // 配色方案
 $space-black: #0a0e17;
 $cyber-blue: #00f3ff;

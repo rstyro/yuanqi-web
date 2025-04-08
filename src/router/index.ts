@@ -27,6 +27,7 @@ const routes:Array<RouteRecordRaw> = [     //主路由模块容器
         component: () => import("@/views/bazi/home.vue"),
         meta:{
             title:"生辰八字",
+            transition:'animate__fadeInUpBig'
         }
     },
     {
