@@ -31,6 +31,15 @@ const routes:Array<RouteRecordRaw> = [     //主路由模块容器
         }
     },
     {
+        path: '/test',
+        name: 'test',
+        component: () => import("@/views/bazi/test.vue"),
+        meta:{
+            title:"测试",
+            transition:'animate__fadeInUpBig'
+        }
+    },
+    {
         path: '/search',
         name: 'search',
         component: () => import("@/views/search/index.vue"),

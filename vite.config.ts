@@ -10,6 +10,9 @@ import IconsResolver from 'unplugin-icons/resolver'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+    define: {
+        __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: JSON.stringify(false)
+    },
     plugins: [
         vue(),
         AutoImport({

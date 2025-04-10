@@ -30,12 +30,10 @@
                       <el-date-picker
                           v-model="pillarDto.dateTime"
                           type="datetime"
-                          placeholder="选择日期时间"
+                          placeholder="请选择您的生辰"
+                          class="hologram-date-picker"
                           format="YYYY-MM-DD HH:mm:ss"
                           value-format="YYYY-MM-DD HH:mm:ss"
-                          style="width: 100%"
-                          :shortcuts="pickerOptions.shortcuts"
-                          :disabled-date="pickerOptions.disabledDate"
                       />
                     </el-form-item>
                   </el-col>
@@ -55,6 +53,7 @@
           </div>
 
           <div class="pillar-container">
+            <!-- 八字排盘 -->
             <div class="left">
               <el-card class="box-card">
                 <template #header>
@@ -89,7 +88,7 @@
                                   trigger="hover" >
                         <div v-html="getDetail(item.tianGanGod)"></div>
                         <template #reference>
-                          <el-tag size="small" type="primary">{{item.tianGanGod}}</el-tag>
+                          <el-tag size="small" type="success">{{item.tianGanGod}}</el-tag>
                         </template>
                       </el-popover>
                     </div>
@@ -159,7 +158,17 @@
                   <!-- 大运流年 -->
                   <div class="pillar-column" v-for="(item,index) in yunPillars" :key="'yun'+index">
                     <div class="row-item row-item-h40 row-item-head">{{item.title}}</div>
-                    <div class="row-item row-item-h40">{{item.tianGanGod}}</div>
+                    <div class="row-item row-item-h40">
+                      <el-popover placement="right-start"
+                                  :title="item.tianGanGod"
+                                  width="500"
+                                  trigger="hover" >
+                        <div v-html="getDetail(item.tianGanGod)"></div>
+                        <template #reference>
+                          <el-tag size="small" type="success">{{item.tianGanGod}}</el-tag>
+                        </template>
+                      </el-popover>
+                    </div>
                     <div class="row-item row-item-h40">
                       <div>
                         <span class="ti"
@@ -174,7 +183,17 @@
                         <span class="extend">{{ item.diZhi.yinYang === 'YANG' ? '阳' : '阴'}}</span>
                       </div>
                     </div>
-                    <div class="row-item row-item-h40">{{item.diZhiGod}}</div>
+                    <div class="row-item row-item-h40">
+                      <el-popover placement="right-start"
+                                  :title="item.diZhiGod"
+                                  width="500"
+                                  trigger="hover" >
+                        <div v-html="getDetail(item.diZhiGod)"></div>
+                        <template #reference>
+                          <el-tag size="small" type="success">{{item.diZhiGod}}</el-tag>
+                        </template>
+                      </el-popover>
+                    </div>
                     <div class="row-item row-item-h80">
                       <div class="hideHight">
                         <el-row :gutter="0">
@@ -216,6 +235,8 @@
                 </div>
               </el-card>
             </div>
+
+            <!-- 大运流年 -->
             <div class="right">
               <el-card class="box-card">
                 <template #header>
@@ -404,32 +425,6 @@ const fleetActiveIndex = ref(0);
 const dialogTitle = ref('提交');
 const formLabelWidth = ref('100px');
 
-const pickerOptions = {
-  disabledDate(time: Date) {
-    return time.getTime() > Date.now();
-  },
-  shortcuts: [{
-    text: '今天',
-    onClick(picker: any) {
-      picker.$emit('pick', new Date());
-    }
-  }, {
-    text: '昨天',
-    onClick(picker: any) {
-      const date = new Date();
-      date.setTime(date.getTime() - 3600 * 1000 * 24);
-      picker.$emit('pick', date);
-    }
-  }, {
-    text: '一周前',
-    onClick(picker: any) {
-      const date = new Date();
-      date.setTime(date.getTime() - 3600 * 1000 * 24 * 7);
-      picker.$emit('pick', date);
-    }
-  }]
-};
-
 const getPillarInfo = () => {
   getBaziInfo(pillarDto).then(r => {
     if (r.code === 200) {
@@ -483,18 +478,8 @@ const showFormBox = () => {
 
 const submitData = () => {
   showForm.value = false;
+  console.log("pillarDto::::",pillarDto);
   getPillarInfo();
-};
-
-const formatDateTime = (date: Date) => {
-  const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const day = date.getDate().toString().padStart(2, '0');
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-  const seconds = date.getSeconds().toString().padStart(2, '0');
-
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
 const checkYun = (index: number) => {
@@ -535,7 +520,7 @@ onMounted(() => {
   pillarDto.dateType = Number(dateType) || 1; // 如果 dateType 无效，默认为 1
   pillarDto.sex = Number(sex) || 1; // 如果 sex 无效，默认为 1
   // 加 as string 是断言这个参数是string类型，因为route.query 返回的值是一个对象，可能是：string、string[]、null ,所以会触发类型检查错误
-  pillarDto.dateTime = dateTime as string || '';
+  pillarDto.dateTime = dateTime as string || '2000-01-01 00:00:01';
 
 
   getPillarInfo();
@@ -551,7 +536,7 @@ onMounted(() => {
   background-color: #f5f7fa;
 
   .content {
-    max-width: 1500px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
 
@@ -611,12 +596,12 @@ onMounted(() => {
   gap: 20px;
 
   .left {
-    flex: 0 0 1100px;
+    flex: 0 0 900px;
   }
 
   .right {
     flex: 1;
-    min-width: 300px;
+    min-width: 500px;
   }
 }
 
@@ -630,11 +615,29 @@ onMounted(() => {
 }
 
 .shensha {
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  overflow: visible;
+  height: auto;
+
+  //.el-space {
+  //  display: flex;
+  //  flex-wrap: wrap;
+  //  overflow: visible;
+  //}
+  //
+  //.el-popover {
+  //  max-height: none !important;
+  //  overflow: visible !important;
+  //}
 }
 
 .hideHight {
   height: 80px;
+  width: 100%;
+  padding: 0px 10px;
+  line-height: 30px;
 }
 
 .pillar-box {
@@ -665,7 +668,7 @@ onMounted(() => {
 }
 
 .row-item {
-  width: 100px;
+  width: 86px;
   padding: 8px;
   border-bottom: 1px solid #ebeef5;
   display: flex;
@@ -684,6 +687,16 @@ onMounted(() => {
 
   &-h80 {
     min-height: 80px;
+  }
+
+  .ti{
+    font-size: 24px;
+    font-weight: bold;
+  }
+
+  // 最后一个不显示下划线
+  &:last-child {
+    border-bottom: none;
   }
 }
 
