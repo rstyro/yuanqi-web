@@ -71,9 +71,14 @@ watch(() => data.theme, (newVal, oldVal) => {
 const changeCssTheme=(theme:boolean)=>{
   if(theme){
     window.document.getElementById("app").setAttribute('data-theme', "light");
+    // element-plus 切换
+    document.documentElement.classList.remove('dark');
   }else {
     window.document.getElementById("app").setAttribute('data-theme', "dark");
+    // element-plus 切换
+    document.documentElement.classList.add('dark');
   }
+
 }
 onMounted(() => {
   changeCssTheme(data.theme);

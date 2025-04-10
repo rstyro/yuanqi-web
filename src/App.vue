@@ -15,7 +15,7 @@ const data = reactive({
   params: null,
 });
 onMounted(() => {
-  console.log("Hello Word")
+  console.log("命理乾坤-八字精解")
 })
 </script>
 
@@ -36,7 +36,6 @@ onMounted(() => {
   /*导航菜单背景颜色*/
   $bgColor: #191919;
 
-
   background: #292a2d;
   $darkBgColor: #292a2d;
   $darkColor: #FFF;
@@ -56,76 +55,16 @@ onMounted(() => {
     background-image: linear-gradient(to top, #09203f 0%, #537895 100%);
   }
 
-  .content {
 
-    /*首页列表卡片*/
-    .poetry-card {
-      --el-card-bg-color: #292a2d;
-      --el-card-border-color: #333;
-      --el-text-color-primary: #fff;
+  .container{
+    background-color: #292a2d;
 
-      .poetry-card-footer {
-        background: $darkBgColor;
-
-        .el-divider__text {
-          background: $darkBgColor;
-        }
-      }
-    }
-
-    /*首页右侧块*/
-    .el-collapse {
-      --el-collapse-header-bg-color: $darkBgColor;
-      --el-collapse-border-color: #333;
-
-      .collapse-title {
-        color: $darkColor;
-      }
-
-      .el-collapse-item__content {
-        background-color: $darkBgColor;
-
-        .el-checkbox__inner {
-          background-color: $darkBgColor;
-          border-color: #666;
-        }
-      }
+    .form-container{
+      background-color: #191919;
     }
   }
 
-  /*加载*/
-  .loading-skeleton {
-    --el-skeleton-color: #333;
-    --el-skeleton-to-color: #666;
-  }
-
-  /*分页*/
-  .el-pagination {
-    --el-fill-color-blank: $darkBgColor;
-    --el-text-color-primary: #fff;
-  }
 
 
-  .detail-content, .fly-content {
-    background-color: $darkBgColor;
-    --el-border-color-light: #333;
-    color: #fff;
-
-    .el-divider {
-      --el-border-color: #666;
-
-      .el-divider__text {
-        background: $darkBgColor;
-      }
-      .fly-title {
-        color: #666;
-        &:hover {
-          color: #409eff;
-        }
-      }
-    }
-
-
-  }
 }
 </style>

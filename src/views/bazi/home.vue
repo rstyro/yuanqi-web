@@ -137,7 +137,9 @@
                     <div class="row-item row-item-h40">{{item.starLuck.name ||''}}</div>
                     <div class="row-item row-item-h40">{{item.selfStarLuck.name}}</div>
                     <div class="row-item row-item-h40">{{item.emptyDie}}</div>
-                    <div class="row-item row-item-h40">{{item.naYin.name}}</div>
+                    <div class="row-item row-item-h40">
+                      <span :style="{ color: item.naYin.element.color,fontWeight:'bold' }">{{ `${item.naYin.name}`}}</span>
+                    </div>
                     <div class="row-item row-item-h40">
                       <div class="shensha">
                         <el-space wrap>
@@ -214,7 +216,9 @@
                     <div class="row-item row-item-h40">{{item.starLuck.name||''}}</div>
                     <div class="row-item row-item-h40">{{item.selfStarLuck.name}}</div>
                     <div class="row-item row-item-h40">{{item.emptyDie}}</div>
-                    <div class="row-item row-item-h40">{{item.naYin.name}}</div>
+                    <div class="row-item row-item-h40">
+                      <span :style="{ color: item.naYin.element.color,fontWeight:'bold' }">{{ `${item.naYin.name}`}}</span>
+                    </div>
                     <div class="row-item row-item-h40">
                       <div class="shensha">
                         <el-space wrap>
@@ -258,7 +262,7 @@
                       <div class="yun-attr">{{item.year}}</div>
                       <div class="yun-attr">{{item.age}}岁</div>
                       <div class="yun-ganzhi">
-                        <div class="yun-ti vertical-text">{{item.pillar.ganZhi}}</div>
+                        <div class="yun-ti">{{item.pillar.ganZhi}}</div>
                         <div class="yun-shensha">{{getShortGod(item.pillar.tianGanGod)+getShortGod(item.pillar.diZhiGod)}}</div>
                       </div>
                     </div>
@@ -272,11 +276,13 @@
                       <div class="yun-attr">{{item.year}}</div>
                       <div class="yun-attr">{{item.age}}岁</div>
                       <div class="yun-ganzhi">
-                        <div class="yun-ti vertical-text">{{item.pillar.ganZhi}}</div>
+                        <div class="yun-ti">{{item.pillar.ganZhi}}</div>
                         <div class="yun-shensha">{{getShortGod(item.pillar.tianGanGod)+getShortGod(item.pillar.diZhiGod)}}</div>
                       </div>
                     </div>
                   </div>
+
+
                 </div>
 
                 <el-divider content-position="left">喜用忌凶</el-divider>
@@ -530,13 +536,13 @@ onMounted(() => {
 <style scoped lang="scss">
 .container {
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   margin: 0;
   padding: 0;
   background-color: #f5f7fa;
 
   .content {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 20px;
 
@@ -593,7 +599,7 @@ onMounted(() => {
 
 .pillar-container {
   display: flex;
-  gap: 20px;
+  gap: 10px;
 
   .left {
     flex: 0 0 900px;
@@ -762,7 +768,7 @@ onMounted(() => {
 
   .yun-box {
     display: flex;
-    gap: 10px;
+    gap: 5px;
     margin-bottom: 20px;
     padding: 10px;
     background: #f5f7fa;
@@ -770,7 +776,7 @@ onMounted(() => {
     overflow-x: auto;
 
     .yun {
-      flex: 0 0 80px;
+      flex: 0 0 36px;
       height: 120px;
       background: #fff;
       border-radius: 4px;
@@ -798,17 +804,27 @@ onMounted(() => {
         color: #909399;
       }
 
+      &-ganzhi {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+      }
+
       &-ti {
         font-size: 18px;
         font-weight: bold;
         color: #409EFF;
+        justify-content: center;
       }
 
       &-shensha {
-        font-size: 12px;
+        font-size: 18px;
         color: #f56c6c;
       }
     }
   }
+
 }
+
 </style>

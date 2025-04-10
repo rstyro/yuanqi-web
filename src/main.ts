@@ -9,6 +9,8 @@ import {createPinia} from 'pinia';
 import piniaPluginPersist from 'pinia-plugin-persist';
 import ElementPlus from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
+// 暗黑模式
+import 'element-plus/theme-chalk/dark/css-vars.css'
 
 const store = createPinia()
 store.use(piniaPluginPersist)
