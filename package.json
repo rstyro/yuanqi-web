@@ -17,7 +17,8 @@
     "pinia": "^3.0.3",
     "pinia-plugin-persist": "^1.0.0",
     "vue": "^3.5.21",
-    "vue-router": "^4.5.1"
+    "vue-router": "^4.5.1",
+    "yuanqi-web": "link:"
   },
   "devDependencies": {
     "@iconify-json/ep": "^1.2.3",

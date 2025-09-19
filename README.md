@@ -17,9 +17,22 @@ cd yuanqi-web
 
 # 安装初始化依赖
 npm install
-
 # 运行项目
 npm run dev
+
+# 最新推荐
+# Corepack 是一个随 Node.js 分发的工具,
+# 激活 Corepack 对 pnpm 命令的代理。执行后，你在命令行中输入的 pnpm 命令会被 Corepack 拦截
+
+corepack enable pnpm
+
+# 建议使用 corepack enable pnpm
+#npm install -g pnpm
+
+# 如果Corepack报错：Error: Cannot find matching keyid: {
+# 那就是Corepack有些版本注册表签名密钥有问题，更新一下最新版本即可： npm install -g corepack@latest
+pnpm install
+pnpm run dev
 ```
 - 运行成功，没报错，说明项目初始化完成。
 - 接下来继续安装我们项目所需要的其他依赖
