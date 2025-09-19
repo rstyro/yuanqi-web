@@ -1,5 +1,5 @@
 {
-  "name": "poetry",
+  "name": "yuanqi-web",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,26 +9,25 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@element-plus/icons-vue": "^2.0.9",
+    "@element-plus/icons-vue": "^2.3.2",
     "animate.css": "^4.1.1",
-    "axios": "^0.27.2",
-    "element-plus": "^2.2.13",
-    "gsap": "^3.11.0",
-    "pinia": "^2.0.22",
+    "axios": "^1.12.2",
+    "element-plus": "^2.11.3",
+    "gsap": "^3.13.0",
+    "pinia": "^3.0.3",
     "pinia-plugin-persist": "^1.0.0",
-    "vue": "^3.2.37",
-    "vue-router": "^4.1.3"
+    "vue": "^3.5.21",
+    "vue-router": "^4.5.1"
   },
   "devDependencies": {
-    "@iconify-json/ep": "^1.1.7",
-    "@vitejs/plugin-vue": "^3.0.3",
-    "sass": "^1.54.4",
-    "sass-loader": "^13.0.2",
-    "typescript": "^4.6.4",
-    "unplugin-auto-import": "^0.11.1",
-    "unplugin-icons": "^0.14.8",
-    "unplugin-vue-components": "^0.22.4",
-    "vite": "^3.0.7",
-    "vue-tsc": "^0.39.5"
+    "@iconify-json/ep": "^1.2.3",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "sass": "^1.92.1",
+    "typescript": "^5.9.2",
+    "unplugin-auto-import": "^20.1.0",
+    "unplugin-icons": "^22.3.0",
+    "unplugin-vue-components": "^29.0.0",
+    "vite": "^7.1.6",
+    "vue-tsc": "^3.0.7"
   }
 }

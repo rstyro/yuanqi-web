@@ -13,7 +13,7 @@
 
 ```bash
 # 进入项目根目录
-cd poetry
+cd yuanqi-web
 
 # 安装初始化依赖
 npm install
@@ -36,7 +36,10 @@ export default defineConfig({
     css:{
         preprocessorOptions:{
             scss: {
-                additionalData: `@import "@/assets/css/style.scss";`
+                // 启用现代 API
+                api: 'modern-compiler',
+                // 全局引入 SCSS 文件
+                additionalData: `@use "@/assets/css/style.scss" as *;`
             }
         }
     }
@@ -362,7 +365,92 @@ router.afterEach((to:RouteLocationNormalized, from:RouteLocationNormalized) => {
 ```
 - 并引入animate.css ：`import 'animate.css'`
 
-#### 4、配置接口请求
+
+#### 4、状态持久化
+- 在前端应用开发中，随着应用复杂度增加，组件之间共享状态变得困难。Props 逐级传递和事件回调会导致代码冗长且难以维护。
+- 状态管理库提供了集中式的状态存储和管理机制，使得状态变化可预测、易于调试。
+- Vuex 是 Vue 的官方状态管理库，采用集中式存储管理应用的所有组件的状态。
+- **Pinia 是 Vue 官方推荐的新一代状态管理库**，具有以下优势：
+  - 更简洁的 API
+  - 完整的 TypeScript 支持
+  - 无需复杂的模块嵌套
+  - 更好的代码分割能力
+
+##### ①、安装Pina
+
+```bash
+yarn add pinia
+# 或者使用 npm
+npm install pinia
+```
+
+##### ②、安装pinia-plugin-persistedstate
+- `pinia-plugin-persistedstate`是提供对 Pinia store 的持久化
+- 此插件与 `pinia>=2.0.0` 兼容
+
+```bash
+yarn add pinia-plugin-persistedstate
+
+npm i pinia-plugin-persistedstate
+
+pnpm add pinia-plugin-persistedstate
+
+```
+
+- 随后，在`main.ts`文件中引入并配置插件：
+
+```ts
+import { createApp } from 'vue'
+import App from './App.vue'
+import {createPinia} from 'pinia';
+// 持久化存储pinia
+import piniaPluginPersist from 'pinia-plugin-persist';
+
+const store = createPinia()
+store.use(piniaPluginPersist)
+
+createApp(App)
+    .use(store)
+    .mount('#app')
+```
+
+##### ③、基本使用
+- 假设我们需要管理用户信息userInfo，并将其持久化到本地存储中，那么就可以这样实现
+
+```ts
+import {defineStore} from "pinia";
+
+export const useUserInfoStore = defineStore('userInfo', {
+    state: () => ({
+        userInfo: null as any
+    }),
+    persist: {
+        key: 'userInfo',
+        // 也可以使用sessionStorage
+        storage: localStorage,
+        paths: ['userInfo'], // 明确声明要持久化的字段
+        // 自定义序列化
+        serializer: {
+            serialize: (state: any) => JSON.stringify(state.userInfo),
+            deserialize: (str: string) => ({ userInfo: JSON.parse(str) })
+        },
+        beforeRestore: (context) => {
+            console.log('Before hydration...')
+        },
+        afterRestore: (context) => {
+            console.log('After hydration...')
+        }
+    } as any,
+    actions: {
+        setUserInfo(info: any) {
+            this.userInfo = info;
+        }
+    }
+});
+```
+
+
+#### 5、配置接口请求
 - 需要安装 axios 依赖
 
 ```bash
