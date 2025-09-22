@@ -33,8 +33,11 @@ declare module 'vue' {
     ElTag: typeof import('element-plus/es')['ElTag']
     Header: typeof import('./src/components/Header.vue')['default']
     LoadingBar: typeof import('./src/components/LoadingBar.vue')['default']
+    MeteorBackground: typeof import('./src/components/MeteorBackground.vue')['default']
+    ParticleBackground: typeof import('./src/components/ParticleBackground.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    StartBackground: typeof import('./src/components/StartBackground.vue')['default']
     Taiji: typeof import('./src/components/Taiji.vue')['default']
   }
 }
