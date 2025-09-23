@@ -1,5 +1,5 @@
 import { createApp,createVNode,render } from 'vue'
-import './style.css'
+import './assets/css/reset.css';
 import App from './App.vue'
 import router from "./router";
 import {NavigationGuardNext, RouteLocationNormalized} from "vue-router";

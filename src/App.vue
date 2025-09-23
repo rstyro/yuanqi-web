@@ -8,6 +8,7 @@
 </template>
 
 <script setup lang="ts">
+
 import 'animate.css';
 import {onMounted, reactive} from 'vue';
 
