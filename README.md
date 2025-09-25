@@ -242,6 +242,9 @@ createApp(App).use(router).mount('#app')
 
 - 如果新增路由页面，编辑：`/src/router/index.ts` 文件即可。
 
+
+
+
 **3.1、配置页面的一个加载进度条特效**
 
 - 首先我们新建一个 加载特效的页面 LoadingBar.vue
@@ -348,7 +351,7 @@ router.afterEach((to:RouteLocationNormalized, from:RouteLocationNormalized) => {
 
 
 **3.2、配置路由的过度特效**
-- 学习内容也来着 `B站大佬：小满zs` 前端知识我看到有用的就学 (抄，是不是不太好听，哈哈)。
+
 - 废话不多说,我们使用到的特效来自 animate.css 库，所以我们需要安装一下依赖
 - 安装依赖命令： `npm install animate.css -S`
 - 打开我们的路由页面：`router/index.ts` 在每个路由的 meta下面添加transition
@@ -372,11 +375,13 @@ router.afterEach((to:RouteLocationNormalized, from:RouteLocationNormalized) => {
 ```
 <router-view #default="{route,Component}">
     <transition :enter-active-class="`animate__animated ${route.meta.transition}`">
-
+      <component :is="Component"></component>
     </transition>
 </router-view>
 ```
+
 - 并引入animate.css ：`import 'animate.css'`
+- 给Transition组件配置过渡class,`enter-active-class`为进入动画的生效状态
 
 
 #### 4、状态持久化
