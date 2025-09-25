@@ -17,7 +17,7 @@ const routes:Array<RouteRecordRaw> = [     //主路由模块容器
         name: 'index',
         component: () => import("@/views/index.vue"),
         meta:{
-            title:"测了个寂寞",
+            title:"玄学不玄",
             transition:'animate__zoomInDown'
         }
     },
@@ -54,14 +54,6 @@ const routes:Array<RouteRecordRaw> = [     //主路由模块容器
         // meta:{
         //     transition: 'animate__slideInUp'
         // }
-    },
-    {
-        path: '/flyFlower',
-        name: 'flyFlower',
-        component: () => import("@/views/search/fly.vue"),
-        meta:{
-            title:"飞花令",
-        }
     },
     {
         path: '/about',

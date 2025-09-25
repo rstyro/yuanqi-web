@@ -18,8 +18,8 @@
           />
         </el-menu-item>
         <div class="flex-grow"></div>
-        <el-menu-item index="search">首页</el-menu-item>
-        <el-menu-item index="works">表白模板</el-menu-item>
+<!--        <el-menu-item index="search">首页</el-menu-item>-->
+<!--        <el-menu-item index="works">表白模板</el-menu-item>-->
         <el-menu-item index="bazi">生辰八字</el-menu-item>
         <el-menu-item index="about">关于</el-menu-item>
 <!--        <el-sub-menu index="user">-->

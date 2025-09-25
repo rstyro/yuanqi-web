@@ -9,6 +9,10 @@
     <h1 class="main-title">探索命运奥秘</h1>
     <p class="subtitle">通过千年易学智慧，解析八字命理，洞悉事业、姻缘与财富</p>
 
+    <div class="btn-container">
+      <el-button class="btn-seek" type="success" plain @click="formDialogVisible = true">开始探索</el-button>
+    </div>
+
     <!-- 特性展示 -->
     <div class="features">
       <div v-for="(item, index) in features" :key="index" class="feature-card feature">
@@ -25,6 +29,53 @@
     </div>
 
 
+    <!-- 模态框 -->
+    <el-dialog
+        v-model="formDialogVisible"
+        title="生辰录入"
+        width="500"
+        draggable
+        center
+        align-center
+    >
+
+      <el-form :model="form" size="large" label-width="auto" style="max-width: 500px">
+        <el-form-item label="性别" >
+          <el-radio-group v-model="form.sex">
+            <el-radio :value="1">男</el-radio>
+            <el-radio :value="0">女</el-radio>
+          </el-radio-group>
+        </el-form-item>
+
+        <el-form-item label="日历" >
+          <el-radio-group v-model="form.dateType">
+            <el-radio :value="1">新历</el-radio>
+            <el-radio :value="2">农历</el-radio>
+          </el-radio-group>
+        </el-form-item>
+
+        <el-form-item label="您的生日" >
+          <el-date-picker
+              v-model="form.dateTime"
+              type="datetime"
+              placeholder="请选择您的生辰"
+              class="hologram-date-picker"
+              format="YYYY-MM-DD HH:mm:ss"
+              value-format="YYYY-MM-DD HH:mm:ss"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="formDialogVisible = false">关闭</el-button>
+          <el-button type="primary" @click="submitForm" :disabled="!formValid">
+            开始探索
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
   </div>
 </template>
 
@@ -34,25 +85,23 @@ import {useRouter} from 'vue-router';
 import StarsBackground from "@/components/StartBackground.vue";
 import MeteorBackground from "@/components/MeteorBackground.vue";
 import Taiji from "@/components/Taiji.vue";
+import {BaziQuery} from "@/api/module/bazi/types";
 
 const router = useRouter();
+const formDialogVisible = ref(false);
 
-interface Form {
-  dateType: number,
-  sex: number,
-  dateTime: Date | null,
-}
-
-const form = reactive<Form>({
+const form = reactive<BaziQuery>({
   dateType: 2,
   sex: 1,
-  dateTime: null,
+  dateTime: '',
+  username: '',
 });
 
-const formValid = computed(() => form.dateTime !== null);
+const formValid = computed(() => form.dateTime !== null && form.dateTime!='');
 
 const submitForm = () => {
   if (formValid.value) {
+    formDialogVisible.value=false;
     router.push({
       name: 'bazi',
       query: {
@@ -65,9 +114,9 @@ const submitForm = () => {
 };
 
 const features = [
-  {icon: 'taiji', title: '命理乾坤', desc: '八字精解，千年易学智慧触手可及'},
-  {icon: 'quantum', title: '大运流转', desc: '阴阳交汇处，遇见更好的自己'},
-  {icon: 'ai', title: '深度学习', desc: '解锁专属命盘解析，洞悉事业、姻缘、财富的天地玄机'}
+  {icon: 'taiji', title: '命理乾坤', desc: '八字精解，融合千年易学智慧，深入剖析人生轨迹'},
+  {icon: 'quantum', title: '大运流转', desc: '阴阳五行流转，揭示大运起伏，把握命运转折点'},
+  {icon: 'ai', title: '智能解析', desc: '解锁专属命盘解析，洞悉事业、姻缘、财富的天地玄机'}
 ];
 </script>
 
@@ -111,6 +160,129 @@ $deep-space: #020617;
     max-width: 600px;
   }
 
+}
+
+/*按钮特效*/
+.btn-container {
+  text-align: center;
+  margin: 2rem 0;
+  position: relative;
+  z-index: 10;
+
+  // 添加装饰性光点元素
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: $hologram-teal;
+    border-radius: 50%;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.6;
+    animation: float 3s ease-in-out infinite;
+  }
+
+  &::before {
+    left: -20px;
+    animation-delay: 0.5s;
+  }
+
+  &::after {
+    right: -20px;
+    animation-delay: 1s;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(-50%) scale(1); }
+    50% { transform: translateY(-60%) scale(1.2); }
+  }
+}
+
+.btn-seek {
+  // 基础样式重置与增强
+  position: relative;
+  background: transparent !important;
+  border: 2px solid $hologram-teal !important;
+  color: $hologram-teal !important;
+  padding: 12px 36px !important;
+  font-size: 1.2rem !important;
+  font-weight: 600;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.4s ease !important;
+
+  // 霓虹光晕效果
+  box-shadow:
+      0 0 10px rgba(0, 255, 157, 0.5),
+      0 0 20px rgba(0, 255, 157, 0.3),
+      inset 0 0 15px rgba(0, 255, 157, 0.1);
+
+  // 流光动画效果
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(0, 255, 157, 0.4),
+            transparent
+    );
+    transition: left 0.6s ease;
+  }
+
+  // 悬停特效
+  &:hover {
+    transform: translateY(-3px) scale(1.05);
+    box-shadow:
+        0 0 20px rgba(0, 255, 157, 0.8),
+        0 0 40px rgba(0, 255, 157, 0.5),
+        0 5px 15px rgba(0, 0, 0, 0.3),
+        inset 0 0 20px rgba(0, 255, 157, 0.2);
+
+    &::before {
+      left: 100%;
+    }
+
+    &::after {
+      width: 120%;
+      height: 120%;
+      opacity: 0;
+    }
+  }
+
+  // 点击特效
+  &:active {
+    transform: translateY(1px) scale(0.98);
+    transition-duration: 0.1s;
+    box-shadow:
+        0 0 10px rgba(0, 255, 157, 0.9),
+        0 0 20px rgba(0, 255, 157, 0.6),
+        inset 0 0 10px rgba(0, 255, 157, 0.3);
+  }
+
+  // 脉动吸引动画
+  animation: subtle-pulse 3s ease-in-out infinite;
+}
+
+@keyframes subtle-pulse {
+  0%, 100% {
+    box-shadow:
+        0 0 10px rgba(0, 255, 157, 0.5),
+        0 0 20px rgba(0, 255, 157, 0.3),
+        inset 0 0 15px rgba(0, 255, 157, 0.1);
+  }
+  50% {
+    box-shadow:
+        0 0 15px rgba(0, 255, 157, 0.7),
+        0 0 30px rgba(0, 255, 157, 0.4),
+        inset 0 0 20px rgba(0, 255, 157, 0.15);
+  }
 }
 
 

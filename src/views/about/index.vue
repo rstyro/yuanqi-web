@@ -57,15 +57,14 @@ onMounted(() => {
 .container {
   width: 100%;
   height: 100%;
-  margin: 0px;
-  padding: 0px;
 
   .main {
-    max-width: 900px;
-    margin: 0px auto;
-    overflow: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 
     .user-info{
+      max-width: 900px;
       text-align: center;
       margin-top: 50px;
 

@@ -12,12 +12,12 @@
             <div v-show="showForm" class="form">
               <el-form :model="pillarDto" label-position="top">
                 <el-row :gutter="20">
-                  <el-col :span="8">
+                  <el-col :span="6">
                     <el-form-item label="姓名">
                       <el-input v-model="pillarDto.username" placeholder="请输入姓名" clearable></el-input>
                     </el-form-item>
                   </el-col>
-                  <el-col :span="8">
+                  <el-col :span="4">
                     <el-form-item label="性别">
                       <el-select v-model="pillarDto.sex" placeholder="请选择性别" style="width: 100%">
                         <el-option :value="1" label="男"></el-option>
@@ -25,7 +25,15 @@
                       </el-select>
                     </el-form-item>
                   </el-col>
-                  <el-col :span="8">
+                  <el-col :span="4">
+                    <el-form-item label="日历">
+                      <el-select v-model="pillarDto.dateType" placeholder="请选择历法" style="width: 100%">
+                        <el-option :value="1" label="新历"></el-option>
+                        <el-option :value="2" label="农历"></el-option>
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="10">
                     <el-form-item label="出生时间">
                       <el-date-picker
                           v-model="pillarDto.dateTime"
@@ -48,7 +56,10 @@
 
         <div class="result-container" v-if="ganZhi">
           <div class="ganZhi">
-            <h3>出生日期：{{yun.birthday}}</h3>
+            <h3>生肖：{{baseInfo.zodiac}}</h3>
+            <h3>星座：{{baseInfo.starSign}}</h3>
+            <h3>农历日期：{{baseInfo.lunarDate}}</h3>
+            <h3>公历日期：{{baseInfo.gregorianDate}}</h3>
             <h3>天干地支：{{ganZhi}}</h3>
           </div>
 
@@ -374,20 +385,13 @@ import {onMounted, reactive, ref} from 'vue';
 import Header from "@/components/Header.vue";
 import {useRoute, useRouter} from "vue-router";
 import {getBaziInfo} from "@/api/module/bazi";
+import {BaziQuery, PillarVo} from "@/api/module/bazi/types";
 
 const router = useRouter();
 const route = useRoute();
 
-// 请求参数
-interface QueryParams {
-  dateType: number;
-  sex: number;
-  dateTime: string;
-  username: string;
-}
-
 // 数据初始化
-const pillarDto = reactive<QueryParams>({
+const pillarDto = reactive<BaziQuery>({
   dateType: 1,
   sex: 1,
   dateTime: '',
@@ -396,6 +400,12 @@ const pillarDto = reactive<QueryParams>({
 
 const ganZhi = ref('');
 const showForm = ref(false);
+const baseInfo = reactive<PillarVo>({
+  zodiac: '',
+  starSign: '',
+  lunarDate: '',
+  gregorianDate: '',
+});
 const yun = reactive({
   luckPillarList: [],
   birthday: '',
@@ -437,6 +447,7 @@ const getPillarInfo = () => {
       const data = r.data.pillarVo;
       lunarExtendMap.value = r.data.lunarExtendMap;
       ganZhi.value = data.ganZhi;
+      Object.assign(baseInfo, data);
       Object.assign(yun, data.yun);
       Object.assign(lifeTime, data.lifeTime);
       Object.assign(caput, data.caput);
