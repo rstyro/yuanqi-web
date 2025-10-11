@@ -2,35 +2,40 @@ name: Build and Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ] # 如果是 master 分支，请改为 master
+    branches: [ main ]  # 或 master，根据你的默认分支调整
+  workflow_dispatch:    # 允许手动触发工作流
 
-# 设置权限，允许写入仓库内容
 permissions:
-  contents: write
+  contents: write      # 确保有写入权限以推送 gh-pages 分支
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout 代码
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 如果项目需要 '最近更新时间' 等 Git 信息，建议设置为 0
+
+      - name: 设置 pnpm
+        uses: pnpm/action-setup@v4 # 专门用于设置 pnpm 环境的 Action :cite[1]:cite[5]
+        with:
+          version: 10.x # 建议指定一个版本，例如 10.x。
 
       - name: 设置 Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '22' # 可根据需要调整
-          cache: 'npm'
+          node-version: '22' # 建议使用 LTS 版本
+          cache: 'pnpm' # 为 pnpm 设置依赖缓存，加速后续构建 :cite[1]:cite[9]
 
       - name: 安装依赖
-        run: npm install
+        run: pnpm install --frozen-lockfile # 使用 --frozen-lockfile 可确保依赖的一致性 :cite[1]
 
       - name: 构建项目
-        run: npm run build
+        run: pnpm run build
 
       - name: 部署到 GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          branch: gh-pages # 部署到的分支
-          folder: dist # Vite 默认打包目录
-          token: ${{ secrets.GITHUB_TOKEN }} # 使用内置 token
+          branch: gh-pages # 部署目标分支
+          folder: dist     # Vite 项目默认的构建输出目录
