@@ -1,1 +1,0 @@
-import{H as o}from"./Header-B6-Y2N8Z.js";import{d as a,o as s,c as t,a as n,j as r,k as c,_ as d}from"./index-6LdGg4Jx.js";/* empty css                  */const _={class:"container"},i=a({__name:"index",setup(p){return s(()=>{}),(m,e)=>(n(),t("div",_,[r(o),e[0]||(e[0]=c("div",{class:"main"},null,-1))]))}}),x=d(i,[["__scopeId","data-v-01cc65e7"]]);export{x as default};
