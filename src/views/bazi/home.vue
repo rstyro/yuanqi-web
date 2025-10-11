@@ -54,13 +54,13 @@
           </el-collapse-transition>
         </div>
 
-        <div class="result-container" v-if="pillarVo.ganZhi">
+        <div class="result-container" v-if="pillarVo?.ganZhi">
           <div class="ganZhi">
-            <h3>生肖：{{pillarVo.zodiac}}</h3>
-            <h3>星座：{{pillarVo.starSign}}</h3>
-            <h3>农历日期：{{pillarVo.lunarDate}}</h3>
-            <h3>公历日期：{{pillarVo.gregorianDate}}</h3>
-            <h3>天干地支：{{pillarVo.ganZhi}}</h3>
+            <h3>生肖：{{pillarVo?.zodiac}}</h3>
+            <h3>星座：{{pillarVo?.starSign}}</h3>
+            <h3>农历日期：{{pillarVo?.lunarDate}}</h3>
+            <h3>公历日期：{{pillarVo?.gregorianDate}}</h3>
+            <h3>天干地支：{{pillarVo?.ganZhi}}</h3>
           </div>
 
           <div class="pillar-container">
@@ -261,14 +261,14 @@
                 </template>
                 <div class="yun-info">
                   <div class="yun-row">
-                    起运：出生后{{pillarVo.yun.yunYear}}年{{pillarVo.yun.yunMonth}}月{{pillarVo.yun.yunDay}}天{{pillarVo.yun.yunHour}}时起运
+                    起运：出生后{{pillarVo?.yun?.yunYear}}年{{pillarVo?.yun?.yunMonth}}月{{pillarVo?.yun?.yunDay}}天{{pillarVo?.yun?.yunHour || 0}}时起运
                   </div>
-                  <div class="yun-row">起运时间：{{pillarVo.yun.startYunDateTime}}</div>
+                  <div class="yun-row">起运时间：{{pillarVo?.yun?.startYunDateTime}}</div>
 
                   <!-- 大运 -->
                   <div class="yun-box">
                     <div class="yun yun-ti row-item-head vertical-text">大运</div>
-                    <div class="yun" v-for="(item,index) in pillarVo.yun.luckPillarList" :key="'yunBox'+index"
+                    <div class="yun" v-for="(item,index) in pillarVo?.yun?.luckPillarList" :key="'yunBox'+index"
                          :class="{ 'yun-active': index === yunActiveIndex }" @click="checkYun(index)">
                       <div class="yun-attr">{{item.year}}</div>
                       <div class="yun-attr">{{item.age}}岁</div>
@@ -282,7 +282,7 @@
                   <!-- 流年 -->
                   <div class="yun-box">
                     <div class="yun yun-ti row-item-head vertical-text">流年</div>
-                    <div class="yun" v-for="(item,index) in (pillarVo.yun.luckPillarList[yunActiveIndex]?.child || [])" :key="'fleet'+index"
+                    <div class="yun" v-for="(item,index) in (pillarVo?.yun?.luckPillarList?.[yunActiveIndex]?.child || [])" :key="'fleet'+index"
                          :class="{ 'yun-active': index === fleetActiveIndex }" @click="checkFleetYear(index)">
                       <div class="yun-attr">{{item.year}}</div>
                       <div class="yun-attr">{{item.age}}岁</div>
@@ -299,11 +299,11 @@
                 <el-divider content-position="left">喜用忌凶</el-divider>
                 <div class="god-container">
                   <div class="god-section">
-                    <h3>身{{pillarVo.lifeTime.score>50?'强':'弱'}}: {{pillarVo.caput.name}}</h3>
+                    <h3>身{{pillarVo?.lifeTime?.score>50?'强':'弱'}}: {{pillarVo?.caput?.name}}</h3>
                     <div class="god-list">
                       <h4>喜用之神：</h4>
                       <el-space wrap>
-                        <el-popover v-for="(item,index) in pillarVo.lifeTime.joyousGods" :key="'joy'+index"
+                        <el-popover v-for="(item,index) in pillarVo?.lifeTime?.joyousGods" :key="'joy'+index"
                                     placement="top-start"
                                     :title="item"
                                     width="500"
@@ -318,7 +318,7 @@
                     <div class="god-list">
                       <h4>忌凶之神：</h4>
                       <el-space wrap>
-                        <el-popover v-for="(item,index) in pillarVo.lifeTime.fearGods" :key="'fear'+index"
+                        <el-popover v-for="(item,index) in pillarVo?.lifeTime?.fearGods" :key="'fear'+index"
                                     placement="top-start"
                                     :title="item"
                                     width="500"
@@ -337,7 +337,7 @@
                     <div class="god-list">
                       <h4>天干相关</h4>
                       <el-space wrap>
-                        <el-tag v-for="(item,index) in pillarVo.mergeVo.tianGanMergeList" :key="'tian'+index" type="info">
+                        <el-tag v-for="(item,index) in pillarVo?.mergeVo?.tianGanMergeList" :key="'tian'+index" type="info">
                           {{item}}
                         </el-tag>
                       </el-space>
@@ -346,25 +346,25 @@
                     <div class="god-list">
                       <h4>地支相关</h4>
                       <el-space wrap>
-                        <el-tag v-for="(item,index) in pillarVo.mergeVo.diZhi6MergeList" :key="'di6'+index" type="info">
+                        <el-tag v-for="(item,index) in pillarVo?.mergeVo?.diZhi6MergeList" :key="'di6'+index" type="info">
                           {{item}}
                         </el-tag>
-                        <el-tag v-for="(item,index) in pillarVo.mergeVo.diZhi3HarmList" :key="'di3h'+index" type="danger">
+                        <el-tag v-for="(item,index) in pillarVo?.mergeVo?.diZhi3HarmList" :key="'di3h'+index" type="danger">
                           {{item}}
                         </el-tag>
-                        <el-tag v-for="(item,index) in pillarVo.mergeVo.diZhi3MergeList" :key="'di3m'+index" type="info">
+                        <el-tag v-for="(item,index) in pillarVo?.mergeVo?.diZhi3MergeList" :key="'di3m'+index" type="info">
                           {{item}}
                         </el-tag>
-                        <el-tag v-for="(item,index) in pillarVo.mergeVo.diZhiHideMergeList" :key="'dihide'+index" type="info">
+                        <el-tag v-for="(item,index) in pillarVo?.mergeVo?.diZhiHideMergeList" :key="'dihide'+index" type="info">
                           {{item}}
                         </el-tag>
-                        <el-tag v-for="(item,index) in pillarVo.mergeVo.diZhi6ConflictList" :key="'di6c'+index" type="danger">
+                        <el-tag v-for="(item,index) in pillarVo?.mergeVo?.diZhi6ConflictList" :key="'di6c'+index" type="danger">
                           {{item}}
                         </el-tag>
-                        <el-tag v-for="(item,index) in pillarVo.mergeVo.diZhi6HarmList" :key="'di6h'+index" type="danger">
+                        <el-tag v-for="(item,index) in pillarVo?.mergeVo?.diZhi6HarmList" :key="'di6h'+index" type="danger">
                           {{item}}
                         </el-tag>
-                        <el-tag v-for="(item,index) in pillarVo.mergeVo.diZhi3MeetList" :key="'di3meet'+index" type="info">
+                        <el-tag v-for="(item,index) in pillarVo?.mergeVo?.diZhi3MeetList" :key="'di3meet'+index" type="info">
                           {{item}}
                         </el-tag>
                       </el-space>
@@ -385,7 +385,7 @@ import {onMounted, reactive, ref} from 'vue';
 import Header from "@/components/Header.vue";
 import {useRoute, useRouter} from "vue-router";
 import {getBaziInfo} from "@/api/module/bazi";
-import {BaziQuery, FleetingYear, PillarVo} from "@/api/module/bazi/types";
+import {BaziQuery, FleetingYear, Pillar, PillarVo} from "@/api/module/bazi/types";
 
 const route = useRoute();
 
@@ -397,8 +397,8 @@ const pillarDto = reactive<BaziQuery>({
   username: ''
 });
 
-// 接口返回
-const pillarVo = ref<PillarVo | null>({
+// 接口返回，可以使用 Partial类型允许某个字段暂时缺失
+const pillarVo = ref<Partial<PillarVo> | null>({
   ganZhi:''
 })
 
@@ -406,28 +406,28 @@ const pillarVo = ref<PillarVo | null>({
 const showForm = ref(false);
 
 // 四柱和大运流年柱
-const fourPillars = ref<PillarVo>([]);
-const yunPillars = ref<FleetingYear>([]);
+const fourPillars = ref<any[]>([]);
+const yunPillars = ref<any[]>([]);
 
 // 神煞扩展数据
-const lunarExtendMap = ref({});
+const lunarExtendMap = ref<Record<string,any>>({});
 const yunActiveIndex = ref(0);
 const fleetActiveIndex = ref(0);
 
 // 接口请求
 const getPillarInfo = () => {
-  getBaziInfo(pillarDto).then((r:ApiResponse) => {
+  getBaziInfo(pillarDto).then((r:any) => {
     if (r.code === 200) {
       const data = r.data.pillarVo;
       pillarVo.value=data;
-      console.log("pillarVo.ganZhi:::::",pillarVo.value.ganZhi);
+      console.log("pillarVo.ganZhi:::::",pillarVo.value?.ganZhi);
       lunarExtendMap.value = r.data.lunarExtendMap;
 
       fourPillars.value = [
-        {...pillarVo.value.yearPillar,"title": "年柱"},
-        {...pillarVo.value.monthPillar, "title": "月柱"},
-        {...pillarVo.value.dayPillar, "title": "日柱"},
-        {...pillarVo.value.hourPillar, "title": "时柱"}
+        {...pillarVo.value?.yearPillar,"title": "年柱"},
+        {...pillarVo.value?.monthPillar , "title": "月柱"},
+        {...pillarVo.value?.dayPillar , "title": "日柱"},
+        {...pillarVo.value?.hourPillar, "title": "时柱"}
       ];
 
       if (data.yun?.luckPillarList?.length > 0) {
@@ -469,17 +469,17 @@ const submitData = () => {
 };
 
 const checkYun = (index: number) => {
-  if (!pillarVo.value.yun.luckPillarList?.[index]) return;
+  if (!pillarVo.value?.yun?.luckPillarList?.[index]) return;
   yunActiveIndex.value = index;
-  const pillar = pillarVo.value.yun.luckPillarList[index].pillar;
+  const pillar = pillarVo.value?.yun.luckPillarList[index].pillar;
   yunPillars.value[0] = {...pillar, "title": "大运"};
   checkFleetYear(0);
 };
 
 const checkFleetYear = (index: number) => {
-  if (!pillarVo.value.yun.luckPillarList?.[yunActiveIndex.value]?.child?.[index]) return;
+  if (!pillarVo.value?.yun?.luckPillarList?.[yunActiveIndex.value]?.child?.[index]) return;
   fleetActiveIndex.value = index;
-  const pillar = pillarVo.value.yun.luckPillarList[yunActiveIndex.value].child[index].pillar;
+  const pillar = pillarVo.value?.yun.luckPillarList[yunActiveIndex.value].child[index].pillar;
   yunPillars.value[1] = {...pillar, "title": "流年"};
 };
 

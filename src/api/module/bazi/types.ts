@@ -29,6 +29,7 @@ export interface GanZhi{
 
 // 柱子信息
 export interface Pillar{
+    title: string,
     type: number,
     ganZhi: string,
     tianGan: GanZhi,
@@ -44,6 +45,7 @@ export interface Pillar{
 
 // 大运流年
 export interface FleetingYear {
+    title: string,
     year: number,
     age: string,
     pillar: Pillar,
@@ -58,10 +60,11 @@ export interface Yun {
     yunYear: number,
     yunMonth: number,
     yunDay: number,
+    yunHour: number,
     contrary: boolean,
     startYunDateTime: string,
     luckGanZhiList: string[],
-    luckPillarList: FleetingYear[],
+    luckPillarList?: FleetingYear[],
 }
 
 export interface MergeVo{
@@ -87,7 +90,9 @@ export interface PillarVo{
     starSign: string;
     lunarDate: string;
     gregorianDate: string;
-    yun: Yun,
-    mergeVo: MergeVo,
+    yun?: Yun,
+    mergeVo?: MergeVo,
+    lifeTime?:any,
+    caput?:any
 }
 

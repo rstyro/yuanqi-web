@@ -3,7 +3,7 @@
     <Header></Header>
     <div class="main">
       <div class="user-info">
-        <el-avatar :size="120" :src="avatar" @error="errorHandler">
+        <el-avatar :size="120" :src="avatar" >
           <img  src="https://cube.elemecdn.com/e/fd/0fc7d20532fdaf769a25683617711png.png" />
         </el-avatar>
         <h1>胖不了小陆</h1>

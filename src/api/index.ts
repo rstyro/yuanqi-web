@@ -1,22 +1,7 @@
-import axios, {AxiosRequestConfig, AxiosResponse,AxiosError} from "axios";
-import { useUserInfoStore } from '@/store/userInfo.ts';
-
-// 定义统一的响应数据结构，这需要与后端约定一致
-interface ApiResponse<T = any> {
-    code: number;
-    data: T;
-    msg: string;
-    trackerId: string;
-    extendMap?: Map<string, object>;
-    [key: string]: any; // 用于兼容可能存在的其他字段
-}
-
-// 扩展 AxiosRequestConfig，加入自定义配置选项
-interface CustomRequestConfig  extends AxiosRequestConfig {
-    showError?: boolean; // 是否显示错误提示
-    requestId?: string; // 可选请求ID，用于取消或缓存
-}
-
+import axios, {AxiosRequestConfig, AxiosResponse, AxiosError, InternalAxiosRequestConfig} from "axios";
+import { useUserInfoStore } from '@/store/userInfo';
+import { CustomRequestConfig,ApiResponse } from '@/api/types';
+import {ElMessage, ElMessageBox} from "element-plus";
 
 // axios 配置
 const config: AxiosRequestConfig = {

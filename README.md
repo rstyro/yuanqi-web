@@ -245,6 +245,7 @@ createApp(App).use(router).mount('#app')
 
 
 
+
 **3.1、配置页面的一个加载进度条特效**
 
 - 首先我们新建一个 加载特效的页面 LoadingBar.vue
@@ -556,6 +557,22 @@ export const getSearchList =(dto:any)=>{
 - 自此接口就配置好了。
 - 自此前端的基本脚手架都搭建好了，接下来就是优化方面的了。
 
+
+#### 6、配置tsconfig.json
+
+- 有时导入包报错：`Cannot find module ‘@/stores/modules/user‘ or its corresponding type declarations`
+- 可以在`tsconfig.json` 添加配置如下：
+
+```json
+{
+  "compilerOptions": {
+    "baseUrl": ".",  
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  }
+}
+```
 
 ### 二、对象创建复用
 - ts 对象创建

@@ -25,10 +25,10 @@ const vNode = createVNode(LoadingBar);
 render(vNode,document.body)
 // 路由前置拦截器
 router.beforeEach((to:RouteLocationNormalized, from:RouteLocationNormalized, next:NavigationGuardNext) => {
-    vNode.component?.exposed.start();
+    vNode.component?.exposed?.start();
     if(to.path==="/search" && to.query.q){
         // 把搜索的内容变成标题
-        document.title=to.query.q;
+        document.title=to.query.q as string;
     } else if(to.meta.title){
         document.title=to.meta.title;
     }
@@ -37,5 +37,5 @@ router.beforeEach((to:RouteLocationNormalized, from:RouteLocationNormalized, nex
 
 // 路由后置拦截器
 router.afterEach((to:RouteLocationNormalized, from:RouteLocationNormalized) => {
-    vNode.component?.exposed.end();
+    vNode.component?.exposed?.end();
 })
