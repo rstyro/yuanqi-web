@@ -1,30 +1,36 @@
-name: Deploy to GitHub Pages
+name: Build and Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ]  # 设置为你需要监听的主分支名称
+    branches: [ main ] # 如果是 master 分支，请改为 master
+
+# 设置权限，允许写入仓库内容
+permissions:
+  contents: write
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+    steps:
+      - name: Checkout 代码
+        uses: actions/checkout@v3
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v3
         with:
-          node-version: 22
+          node-version: '22' # 可根据需要调整
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci         # ci 比 install 更快且更适用于自动化环境
+      - name: 安装依赖
+        run: npm install
 
-      - name: Build project
+      - name: 构建项目
         run: npm run build
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: 部署到 GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
+          branch: gh-pages # 部署到的分支
+          folder: dist # Vite 默认打包目录
+          token: ${{ secrets.GITHUB_TOKEN }} # 使用内置 token
