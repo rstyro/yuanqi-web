@@ -55,13 +55,14 @@
         </div>
 
         <div class="result-container" v-if="pillarVo?.ganZhi">
-          <div class="ganZhi">
-            <h3>生肖：{{pillarVo?.zodiac}}</h3>
-            <h3>星座：{{pillarVo?.starSign}}</h3>
-            <h3>农历日期：{{pillarVo?.lunarDate}}</h3>
-            <h3>公历日期：{{pillarVo?.gregorianDate}}</h3>
-            <h3>天干地支：{{pillarVo?.ganZhi}}</h3>
-          </div>
+
+          <el-descriptions  column="1"  class="user-base-box">
+            <el-descriptions-item label="生肖">{{pillarVo?.zodiac}}</el-descriptions-item>
+            <el-descriptions-item label="星座">{{pillarVo?.starSign}}</el-descriptions-item>
+            <el-descriptions-item label="农历日期">{{pillarVo?.lunarDate}}</el-descriptions-item>
+            <el-descriptions-item label="公历日期">{{pillarVo?.gregorianDate}}</el-descriptions-item>
+            <el-descriptions-item label="天干地支">{{pillarVo?.ganZhi}}</el-descriptions-item>
+          </el-descriptions>
 
           <div class="pillar-container">
             <!-- 八字排盘 -->
@@ -538,16 +539,20 @@ onMounted(() => {
       }
 
       .result-container {
-        .ganZhi {
-          background: #fff;
-          padding: 20px;
-          border-radius: 8px;
-          margin-bottom: 20px;
-          box-shadow: 0 2px 12px 0 rgba(0,0,0,.1);
 
-          h3 {
-            margin: 0;
-            color: #409EFF;
+        .user-base-box {
+          border-radius: 12px;
+          margin: 20px auto;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+          :deep(.el-descriptions__body) {
+            border-radius: 12px;
+            padding: 20px;
+          }
+
+          :deep(.el-descriptions__label) {
+            font-weight: 600;
+            color: #2c3e50;
           }
         }
 
@@ -802,6 +807,49 @@ onMounted(() => {
         font-size: 18px;
         color: #f56c6c;
       }
+    }
+  }
+
+}
+
+/**
+暗黑模式
+ */
+#app[data-theme='dark'] {
+  $bgPrimaryColor: #1a1a1a;
+  $bgSecondColor: #2d2d2d;
+  $bgThirdColor: #555;
+  $tableHeader: #0f1419;
+
+
+  .pillar-box{
+    background: $bgPrimaryColor;
+  }
+
+  .pillar-column{
+    background: $bgSecondColor;
+
+    &:first-child {
+      background: $bgThirdColor;
+    }
+
+    .row-item-head {
+      background: $tableHeader;
+    }
+  }
+
+  .yun-row {
+    background: $bgThirdColor;
+    color: #e0e0e0;
+  }
+
+  .yun-box{
+    background: $bgThirdColor;
+
+    .yun {
+      background: $bgSecondColor;
+      border-color: #666;
+
     }
   }
 

@@ -11,7 +11,7 @@
       >
         <el-menu-item index="index">
           <el-image
-              style="height: 100%;"
+              style="height: 90%;"
               :src="logoImg"
               fit="cover"
               class="logo-shiny"
