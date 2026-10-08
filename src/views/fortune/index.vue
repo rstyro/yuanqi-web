@@ -172,24 +172,35 @@
           >{{ s }}</el-button>
         </div>
 
-        <div class="input-row">
+        <div class="input-box" :class="{ 'is-disabled': busy }">
           <el-input
               v-model="question"
               type="textarea"
-              :rows="2"
+              :autosize="{ minRows: 2, maxRows: 8 }"
               resize="none"
               :disabled="busy"
-              placeholder="说出生辰八字，或直接追问…　Enter 发送 / Shift + Enter 换行"
+              placeholder="说出生辰八字，或直接追问…"
               @keydown.enter.exact.prevent="send()"
           />
-          <el-button
-              type="primary"
-              size="large"
-              class="send-btn"
-              :loading="busy"
-              :disabled="!busy && !question.trim()"
-              @click="send()"
-          >{{ busy ? '推演中…' : '开始推演' }}</el-button>
+          <div class="input-bar">
+            <span class="input-tip">Enter 发送 · Shift + Enter 换行</span>
+            <span class="bar-spacer"></span>
+            <!-- 按钮被 disabled 时自身不派发鼠标事件，tooltip 会失效；
+                 套一层 span 让 tooltip 有可命中的宿主，也顺便定住尺寸 -->
+            <el-tooltip :content="sendTip" placement="top">
+              <span class="send-wrap">
+                <el-button
+                    type="primary"
+                    circle
+                    class="send-btn"
+                    :icon="Promotion"
+                    :loading="busy"
+                    :disabled="!busy && !question.trim()"
+                    @click="send()"
+                />
+              </span>
+            </el-tooltip>
+          </div>
         </div>
 
         <p class="composer-hint">
@@ -215,10 +226,10 @@
  * 命盘是<b>会话级</b>的，不是每轮一份 —— 后端只在首轮推 chart，追问轮不重推。
  * 因此命盘卡片挂在 {@code rounds} 循环外面。
  */
-import {computed, nextTick, onMounted, onUnmounted, ref} from 'vue';
+import {computed, nextTick, onMounted, onUnmounted, reactive, ref} from 'vue';
 import {useRoute} from 'vue-router';
 import {ElMessage} from 'element-plus';
-import {CopyDocument, RefreshRight} from '@element-plus/icons-vue';
+import {CopyDocument, Promotion, RefreshRight} from '@element-plus/icons-vue';
 import Header from '@/components/Header.vue';
 import {streamAsk} from '@/api/module/fortune';
 import type {
@@ -280,6 +291,12 @@ let controller: AbortController | null = null;
 
 // ==================== 衍生数据 ====================
 
+/** 发送按钮的提示语。按钮是图标了，语义得靠 tooltip 补 */
+const sendTip = computed(() => {
+  if (busy.value) return '推演中，请稍候';
+  return question.value.trim() ? '发送（Enter）' : '先写下生辰或要问的事';
+});
+
 const chartColumns = computed(() => {
   const vo = chart.value;
   if (!vo) return [];
@@ -328,7 +345,13 @@ function send(preset?: string): void {
   question.value = '';
   busy.value = true;
 
-  const round: Round = {
+  // 必须 reactive()，不能是普通对象。
+  // ref([]) 只把**数组本身**变成响应式：push 一个普通对象进去，数组存的是原始对象，
+  // 而模板读到的却是它的响应式代理 —— 于是后面 handleEvent 里对 round 的每一次
+  // 赋值（stage / report / pillars）都绕过了代理，不触发重渲染。
+  // 症状很隐蔽：busy 与 chart 会触发重渲染，所以骨架屏、命盘卡片都正常出现，
+  // 但「四柱逐根点亮」和「报告打字机」全程不动，直到 finally 里 busy=false 才一次性糊上来。
+  const round = reactive<Round>({
     question: text,
     stage: {},
     pillars: [],
@@ -339,7 +362,7 @@ function send(preset?: string): void {
     elapsed: 0,
     startedAt: performance.now(),
     followUp: isFollowUp,
-  };
+  });
   rounds.value.push(round);
   scrollToBottom();
 
@@ -1053,22 +1076,84 @@ onUnmounted(() => {
   margin-bottom: 10px;
 }
 
-.input-row {
-  display: flex;
-  gap: 12px;
-  align-items: stretch;
+/**
+ * 输入区做成一个「盒子」：文本域在上、工具条在下。
+ *
+ * <p>为什么不是文本域 + 右侧按钮两列：按钮竖在右边会把文本域的可用宽度吃掉一截，
+ * 而且长文换行时按钮高度会跟着撑开，看着很怪。收到盒内右下角之后，
+ * 文本域能占满整行，输入区高度只随内容长。
+ */
+.input-box {
+  position: relative;
+  padding: 10px 10px 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 
-  :deep(.el-textarea) {
-    flex: 1;
+  &:hover {
+    border-color: var(--line-strong);
+  }
+
+  &:focus-within {
+    border-color: var(--gold-2);
+    box-shadow: 0 0 0 4px var(--gold-wash);
+  }
+
+  &.is-disabled {
+    opacity: 0.72;
+  }
+
+  // 焦点环画在整个盒子上，所以要把 textarea 自带的那圈描边关掉。
+  // theme.css 给 .el-textarea__inner 上了 box-shadow 描边 + 白底，
+  // 不关掉的话盒子里会再套一个更小的方框，边框会「双线」。
+  :deep(.el-textarea__inner) {
+    padding: 0 4px 6px 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: 14px;
+    line-height: 1.75;
+
+    &:hover,
+    &:focus {
+      box-shadow: none;
+    }
+  }
+
+  // 禁用态 Element Plus 会给灰底，同样要在盒子里抹掉
+  :deep(.el-textarea.is-disabled .el-textarea__inner) {
+    background: transparent;
+    color: var(--text-dim);
   }
 }
 
+.input-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+
+.input-tip {
+  padding-left: 2px;
+  font-size: 11px;
+  color: var(--text-faint);
+  user-select: none;
+}
+
+.bar-spacer {
+  flex: 1;
+}
+
+.send-wrap {
+  display: inline-flex;
+}
+
 .send-btn {
-  flex: none;
-  height: auto;
-  min-height: 54px;
-  padding: 0 30px;
-  letter-spacing: 0.1em;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 16px;
 }
 
 .composer-hint {
@@ -1105,12 +1190,13 @@ onUnmounted(() => {
     padding-right: 14px;
   }
 
-  .input-row {
-    flex-direction: column;
+  .input-box {
+    padding: 8px 8px 6px 12px;
+  }
 
-    .send-btn {
-      min-height: 44px;
-    }
+  // 窄屏没有 Shift+Enter 这个概念，提示语省掉，给文本域让宽度
+  .input-tip {
+    display: none;
   }
 }
 </style>
