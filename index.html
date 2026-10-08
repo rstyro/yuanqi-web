@@ -24,8 +24,43 @@
         }
 
     </style>
-  <script type="module" crossorigin src="/yuanqi-web/assets/index-o5mJkQzn.js"></script>
-  <link rel="stylesheet" crossorigin href="/yuanqi-web/assets/index-BqX5hk-V.css">
+    <script>
+        /*
+         * 首屏防闪烁。
+         *
+         * 主题偏好存在 localStorage 里，而 Vue 要等 JS 加载完才挂载 ——
+         * 如果只在 App.vue 的 onMounted 里应用主题，选了暗色的用户每次刷新
+         * 都会先看到一帧亮色。这个内联脚本在解析阶段就把 html.dark 写上去，
+         * 早于首帧绘制。
+         *
+         * 键名与 src/utils/theme.ts 的 THEME_STORAGE_KEY 必须一致。
+         * 这里刻意不去解析 pinia 持久化的 theme_store —— 那是插件自己的格式
+         * （可能是 {theme:true}，也可能是 {state:{theme:true}}），
+         * 把它当契约会在插件升级时悄悄失效。
+         */
+        (function () {
+            function paintTheme() {
+                var dark = false;
+                try {
+                    dark = localStorage.getItem('yuanqi.theme') === 'dark';
+                } catch (e) {
+                    // 隐私模式下读不到，按明亮处理即可
+                }
+                if (!dark) return;
+                var root = document.documentElement;
+                root.classList.add('dark');
+                root.style.colorScheme = 'dark';
+                var app = document.getElementById('app');
+                if (app) app.setAttribute('data-theme', 'dark');
+            }
+
+            paintTheme();
+            // <head> 阶段还没有 #app，等 DOM 建好再补一次
+            document.addEventListener('DOMContentLoaded', paintTheme);
+        })();
+    </script>
+  <script type="module" crossorigin src="/yuanqi-web/assets/index-BZsMqako.js"></script>
+  <link rel="stylesheet" crossorigin href="/yuanqi-web/assets/index-CKEaEvAB.css">
 </head>
 <body>
 
