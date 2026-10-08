@@ -54,6 +54,10 @@
           </el-radio-group>
         </el-form-item>
 
+        <el-form-item v-if="form.dateType === 2" label="闰月" >
+          <el-checkbox v-model="form.leapMonth">按闰月排（该年确有这个闰月时生效）</el-checkbox>
+        </el-form-item>
+
         <el-form-item label="您的生日" >
           <el-date-picker
               v-model="form.dateTime"
@@ -62,7 +66,30 @@
               class="hologram-date-picker"
               format="YYYY-MM-DD HH:mm:ss"
               value-format="YYYY-MM-DD HH:mm:ss"
+              :disabled-date="disabledFutureDate"
           />
+        </el-form-item>
+
+        <!-- 出生地：只在浅层取经度即可，市级坐标对时辰的影响与区县级差异极小 -->
+        <el-form-item label="出生地" >
+          <div class="region-picker">
+            <el-select v-model="region.province" placeholder="省" filterable clearable
+                       @change="onProvinceChange">
+              <el-option v-for="p in region.provinces" :key="p.code" :label="p.name" :value="p.code"/>
+            </el-select>
+            <el-select v-model="region.city" placeholder="市（选填）" filterable clearable
+                       :disabled="!region.cities.length" @change="onCityChange">
+              <el-option v-for="c in region.cities" :key="c.code" :label="c.name" :value="c.code"/>
+            </el-select>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="真太阳时" >
+          <div class="tst-line">
+            <el-switch v-model="form.useTrueSolarTime"/>
+            <el-checkbox v-if="form.useTrueSolarTime" v-model="form.withEquationOfTime">含均时差</el-checkbox>
+            <span v-if="tstActive" class="tst-preview">{{ tstCorrectedText }}<em>{{ tstOffsetText }}</em></span>
+          </div>
         </el-form-item>
       </el-form>
 
@@ -80,12 +107,13 @@
 </template>
 
 <script setup lang="ts">
-import {ref, reactive, computed} from 'vue';
+import {ref, reactive, computed, onMounted} from 'vue';
 import {useRouter} from 'vue-router';
 import StarsBackground from "@/components/StartBackground.vue";
 import MeteorBackground from "@/components/MeteorBackground.vue";
 import Taiji from "@/components/Taiji.vue";
-import {BaziQuery} from "@/api/module/bazi/types";
+import {getRegionChildren} from "@/api/module/bazi";
+import type {BaziQuery, RegionVo} from "@/api/module/bazi/types";
 
 const router = useRouter();
 const formDialogVisible = ref(false);
@@ -95,22 +123,129 @@ const form = reactive<BaziQuery>({
   sex: 1,
   dateTime: '',
   username: '',
+  // 真太阳时默认关（与后端 PillarDto 默认值一致，保历史行为）
+  longitude: null,
+  useTrueSolarTime: false,
+  withEquationOfTime: false,
+  leapMonth: false,
 });
 
-const formValid = computed(() => form.dateTime !== null && form.dateTime!='');
+const formValid = computed(() => form.dateTime !== null && form.dateTime != '');
+
+/* ---- 出生地（省 / 市 两级，只要经度） ---- */
+const region = reactive({
+  provinces: [] as RegionVo[],
+  cities: [] as RegionVo[],
+  province: null as string | null,
+  city: null as string | null,
+  picked: null as RegionVo | null,
+});
+
+const fetchRegions = (parentCode?: string): Promise<RegionVo[]> =>
+    getRegionChildren(parentCode)
+        .then((r: any) => (r?.code === 200 ? ((r.data || []) as RegionVo[]) : []))
+        .catch((error: unknown) => {
+          console.error('加载行政区失败：', error);
+          return [];
+        });
+
+const applyPicked = (r?: RegionVo) => {
+  region.picked = r || null;
+  if (r && r.longitude != null) {
+    form.longitude = Number(r.longitude);
+  } else if (r) {
+    form.longitude = null;
+  }
+};
+
+const onProvinceChange = (code: string | null) => {
+  region.province = code;
+  region.cities = [];
+  region.city = null;
+  applyPicked(region.provinces.find(x => x.code === code));
+  if (!code) return;
+  fetchRegions(code).then(list => {
+    region.cities = list;
+  });
+};
+
+const onCityChange = (code: string | null) => {
+  region.city = code || null;
+  const c = region.cities.find(x => x.code === code);
+  if (c) {
+    applyPicked(c);
+  } else {
+    // 清掉市 → 退回省坐标（不能只传 undefined，那会保留已清掉那个市的经度）
+    applyPicked(region.provinces.find(x => x.code === region.province));
+  }
+};
+
+/* ---- 真太阳时预览（与后端同口径，仅用于回显；真正排盘由后端算） ---- */
+const tstActive = computed(() => !!(form.useTrueSolarTime && form.longitude));
+
+const tstOffsetMinutes = computed(() => {
+  if (!tstActive.value) return 0;
+  let m = Math.round((Number(form.longitude) - 120) * 4);
+  if (form.withEquationOfTime) m += Math.round(equationOfTimeMinutes(form.dateTime));
+  return m;
+});
+
+const tstOffsetText = computed(() => {
+  const m = tstOffsetMinutes.value;
+  if (!m) return '±0 分';
+  return (m > 0 ? '+' : '') + m + ' 分';
+});
+
+const tstCorrectedText = computed(() => {
+  const dt = form.dateTime;
+  if (!dt) return '—';
+  const d = new Date(String(dt).replace(/-/g, '/'));
+  if (isNaN(d.getTime())) return '—';
+  d.setMinutes(d.getMinutes() + tstOffsetMinutes.value);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}`;
+});
+
+/** 均时差（分钟）—— 与后端 TrueSolarTime.equationOfTimeMinutes 同口径 */
+const equationOfTimeMinutes = (dtStr?: string) => {
+  if (!dtStr) return 0;
+  const d = new Date(String(dtStr).replace(/-/g, '/'));
+  if (isNaN(d.getTime())) return 0;
+  const start = new Date(d.getFullYear(), 0, 0);
+  const doy = Math.floor((d.getTime() - start.getTime()) / 86400000);
+  const gamma = (2 * Math.PI / 365) * (doy - 1 + 0.5);
+  return 229.18 * (0.000075
+      + 0.001868 * Math.cos(gamma)
+      - 0.032077 * Math.sin(gamma)
+      - 0.014615 * Math.cos(2 * gamma)
+      - 0.040849 * Math.sin(2 * gamma));
+};
+
+const disabledFutureDate = (time: Date) => time.getTime() > Date.now();
+
+onMounted(() => {
+  fetchRegions().then(list => {
+    region.provinces = list;
+  });
+});
 
 const submitForm = () => {
-  if (formValid.value) {
-    formDialogVisible.value=false;
-    router.push({
-      name: 'bazi',
-      query: {
-        dateType: form.dateType,
-        sex: form.sex,
-        dateTime: form.dateTime
-      }
-    });
-  }
+  if (!formValid.value) return;
+  formDialogVisible.value = false;
+  router.push({
+    name: 'bazi',
+    query: {
+      dateType: form.dateType,
+      sex: form.sex,
+      dateTime: form.dateTime,
+      username: form.username || undefined,
+      // 联动参数：只在有意义时带上，避免 query 里出现一堆 undefined
+      longitude: form.longitude ?? undefined,
+      useTrueSolarTime: form.useTrueSolarTime ? '1' : undefined,
+      withEquationOfTime: form.withEquationOfTime ? '1' : undefined,
+      leapMonth: form.dateType === 2 && form.leapMonth ? '1' : undefined,
+    }
+  });
 };
 
 const features = [
@@ -282,6 +417,45 @@ $deep-space: #020617;
         0 0 15px rgba(0, 255, 157, 0.7),
         0 0 30px rgba(0, 255, 157, 0.4),
         inset 0 0 20px rgba(0, 255, 157, 0.15);
+  }
+}
+
+/* ==========================================================================
+ * 生辰录入对话框里的补充参数（出生地 / 真太阳时）
+ * ========================================================================= */
+.region-picker {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+
+  .el-select {
+    flex: 1;
+  }
+}
+
+.tst-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  line-height: 1.4;
+}
+
+/* 校正后的时刻预览，让人一眼看到「差了多少」 */
+.tst-preview {
+  font-size: 12px;
+  color: var(--text-faint);
+  font-family: var(--mono);
+
+  em {
+    font-style: normal;
+    margin-left: 6px;
+    padding: 0 5px;
+    border-radius: 3px;
+    background: var(--gold-wash);
+    border: 1px solid var(--gold-soft);
+    color: var(--gold);
+    font-size: 11px;
   }
 }
 

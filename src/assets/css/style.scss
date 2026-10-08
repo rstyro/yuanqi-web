@@ -2,8 +2,38 @@
 $bgColor: #f5f5f5;
 /*导航背景高度*/
 $headerH: 90px;
-/*主体宽度*/
-$mainWidth: 1200px;
 
+/*主体宽度 —— 除首页外，所有页面（含 Header 内层）的内容轴心。
+  Header、八字页、AI 推演页、关于页都取它，页面之间才会落在同一条竖线上。*/
+$mainWidth: 1100px;
 
+/*主体容器左右内边距。提取成变量而不是逐页写死，
+  是为了让 Header 与页面内容用同一个值 —— 否则 logo 和下方卡片会差一截。*/
+$mainPad: 24px;
 
+/**
+ * 主体容器：定宽 + 居中 + 页码对齐。
+ *
+ * <p><b>为什么必须带 box-sizing: border-box</b>：本项目没有全局设置它
+ * （reset.css / style.css 都没有），默认是 content-box，那时 max-width
+ * 只约束「内容盒」，两边的 padding 会额外撑出去 ——
+ * 写 max-width: 1100px 配 padding: 0 24px，实际外框是 1148px，
+ * 比想约束的宽度还大，和 Header 反而对不齐。
+ * 就地声明而不动全局：全局改 box-sizing 会影响一批「width + padding」
+ * 混写的老样式（如时间轴的 .tl-yun），风险不值得。
+ *
+ * @param {Length} $pad 水平内边距，默认 $mainPad
+ */
+@mixin main-container($pad: null) {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: $mainWidth;
+  margin-left: auto;
+  margin-right: auto;
+
+  // 传 null 表示「只要定宽居中，内边距我自己写」
+  @if $pad != null {
+    padding-left: $pad;
+    padding-right: $pad;
+  }
+}

@@ -31,6 +31,17 @@ const routes:Array<RouteRecordRaw> = [     //主路由模块容器
         }
     },
     {
+        path: '/fortune',
+        name: 'fortune',
+        component: () => import("@/views/fortune/index.vue"),
+        meta:{
+            title:"AI 命理推演",
+            // 这一页有吸底输入区，且滚动容器是 #app。含位移的入场动画
+            // （fadeInUpBig 之类）会让吸底条在动画期间看着在抖，故只用淡入。
+            transition:'animate__fadeIn'
+        }
+    },
+    {
         path: '/test',
         name: 'test',
         component: () => import("@/views/bazi/test.vue"),

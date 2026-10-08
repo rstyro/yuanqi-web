@@ -21,6 +21,7 @@
 <!--        <el-menu-item index="search">首页</el-menu-item>-->
 <!--        <el-menu-item index="works">表白模板</el-menu-item>-->
         <el-menu-item index="bazi">生辰八字</el-menu-item>
+        <el-menu-item index="fortune">AI 推演</el-menu-item>
         <el-menu-item index="about">关于</el-menu-item>
 <!--        <el-sub-menu index="user">-->
 <!--          <template #title>我的</template>-->
@@ -47,6 +48,7 @@ import {useRoute} from "vue-router";
 import logoImg from '@/assets/images/logo.png';
 import { Sunny, Moon } from '@element-plus/icons-vue';
 import {useMainStore} from "@/store/index.js"
+import {applyTheme} from "@/utils/theme";
 
 const route = useRoute();
 const store = useMainStore();
@@ -59,29 +61,18 @@ const data = reactive<any>({
   theme : store.theme,
 });
 
-// 监听一下主题变化
-watch(() => data.theme, (newVal, oldVal) => {
-  console.log("val:",newVal,oldVal);
-  // 修改pinia
-  // store.changeTheme(newVal);
-  store.theme=newVal;
-  changeCssTheme(data.theme);
+// 监听一下主题变化。
+// 「应用主题」的三处落点（html.dark / #app[data-theme] / localStorage）统一由
+// App.vue 调 utils/theme.ts 的 applyTheme 处理 —— 放在根组件才能覆盖没有 Header
+// 的页面（如首页）。这里只负责把用户的选择写回 store。
+watch(() => data.theme, (newVal: boolean) => {
+  store.theme = newVal;
 });
 
-const changeCssTheme=(theme:boolean)=>{
-  if(theme){
-    window.document.getElementById("app")?.setAttribute('data-theme', "light");
-    // element-plus 切换
-    document.documentElement.classList.remove('dark');
-  }else {
-    window.document.getElementById("app")?.setAttribute('data-theme', "dark");
-    // element-plus 切换
-    document.documentElement.classList.add('dark');
-  }
-
-}
+// 首次进入时把 store 里的偏好落到 DOM 上。
+// App.vue 已经做过一次，这里是幂等的兜底 —— 防止将来有人把 Header 单独挂到别处。
 onMounted(() => {
-  changeCssTheme(data.theme);
+  applyTheme(data.theme);
 })
 
 </script>
@@ -101,8 +92,10 @@ header {
 
   .header-inner {
     //background: rgba(43, 72, 101, 0.6);
-    max-width: $mainWidth;
-    margin: 0px auto;
+    // 与下方页面内容共用同一个轴心与内边距（见 style.scss 的 main-container）。
+    // 若这里不加 $mainPad，logo 会贴在 1100 的外沿，
+    // 而页面卡片内缩 24px，两者左边界差一截。
+    @include main-container($mainPad);
     display: flex;
 
     .el-menus{
@@ -113,8 +106,14 @@ header {
       vertical-align: middle;
       height: $headerH;
       line-height: $headerH;
-      width: 100px;
-      margin-left: 24px
+      // width 原来是 100px + 无右边距，结果是「可见控件靠左、右边 60px 是死区」，
+      // 而这块死区正好压在 index.html 里那个
+      // `position:absolute; top:0; right:0; 80×80` 的 GitHub 角标下面。
+      // 用自动化点击 .theme-switch 会随机失败（点的是元素中心，落到了角标上），
+      // 真人用鼠标点右半边同样点不动。改成贴合控件宽度 + 右侧留出角标的位置。
+      width: auto;
+      margin-left: 24px;
+      margin-right: 96px;
     }
 
     .logo {

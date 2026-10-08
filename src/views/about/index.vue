@@ -59,6 +59,10 @@ onMounted(() => {
   height: 100%;
 
   .main {
+    // 「主体」这一层与其它页面同宽（$mainWidth，见 style.scss）；
+    // 里面的告示卡仍限 900px —— 只约束主体，不把正文行拉长到不好读。
+    max-width: $mainWidth;
+    margin: 0 auto;
     display: flex;
     justify-content: center;
     align-items: center;

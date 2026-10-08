@@ -66,8 +66,10 @@ export default defineConfig({
 $bgColor: #f5f5f5;
 /*导航背景高度*/
 $headerH: 90px;
-/*主体宽度*/
-$mainWidth: 1200px;
+/*主体宽度（除首页外所有页面的内容轴心，详见「三、5、主体宽度」）*/
+$mainWidth: 1100px;
+/*主体容器左右内边距（Header 与页面共用同一个值）*/
+$mainPad: 24px;
 ```
 - 然后即可在页面中的`<style>`块中使用这几个变量，不需要export。
 
@@ -405,7 +407,15 @@ npm install pinia
 
 ##### ②、安装pinia-plugin-persistedstate
 - `pinia-plugin-persistedstate`是提供对 Pinia store 的持久化
-- 此插件与 `pinia>=2.0.0` 兼容
+- 此插件与 `pinia>=2.0.0` 兼容（**旧的 `pinia-plugin-persist` 声明的是 `pinia@^2`，
+  在 pinia 3 下 peer 一直不满足，所以本项目已换掉它**）
+- 注意插件的 **v2 → v3 → v4 之间有破坏性改名**，照着旧文章写会静默失效：
+
+  | 旧名字（v2） | 现名字（v3+） |
+  | --- | --- |
+  | `paths` | `pick` |
+  | `beforeRestore` | `beforeHydrate` |
+  | `afterRestore` | `afterHydrate` |
 
 ```bash
 yarn add pinia-plugin-persistedstate
@@ -423,10 +433,10 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import {createPinia} from 'pinia';
 // 持久化存储pinia
-import piniaPluginPersist from 'pinia-plugin-persist';
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 
 const store = createPinia()
-store.use(piniaPluginPersist)
+store.use(piniaPluginPersistedstate)
 
 createApp(App)
     .use(store)
@@ -445,18 +455,19 @@ export const useUserInfoStore = defineStore('userInfo', {
     }),
     persist: {
         key: 'userInfo',
-        // 也可以使用sessionStorage
+        // 也可以使用sessionStorage；不写则默认 localStorage
         storage: localStorage,
-        paths: ['userInfo'], // 明确声明要持久化的字段
+        pick: ['userInfo'], // 明确声明要持久化的字段（v2 里叫 paths）
         // 自定义序列化
         serializer: {
             serialize: (state: any) => JSON.stringify(state.userInfo),
             deserialize: (str: string) => ({ userInfo: JSON.parse(str) })
         },
-        beforeRestore: (context) => {
+        // v2 里分别叫 beforeRestore / afterRestore
+        beforeHydrate: (context) => {
             console.log('Before hydration...')
         },
-        afterRestore: (context) => {
+        afterHydrate: (context) => {
             console.log('After hydration...')
         }
     } as any,
@@ -578,3 +589,160 @@ export const getSearchList =(dto:any)=>{
 - ts 对象创建
 - 新建：`/types/index.ts` 在文件中定义对象，使用`import { Pillar } from "@/types/bazi";` 引用具体的对象
 - 可以新建一个工具类，对上面定义的对象进行初始化，如：`basiUtils.ts`
+
+### 三、主题与设计令牌（明亮 / 暗黑）
+
+全站颜色、圆角、阴影统一走 CSS 变量，**组件里只写 `var(--xxx)`，不写具体色值**。
+换肤因此只是同一批变量在两个选择器下的两组赋值，不需要给每个组件写两遍样式。
+
+#### 1、令牌放在哪
+
+`src/assets/css/theme.css`，在 `main.ts` 里引入。同时覆盖了 Element Plus 的 `--el-*` 变量，
+所以 `el-card` / `el-table` / `el-tag` 不用单独写覆盖样式就能跟主题一致。
+
+```css
+:root:root { /* 明亮 */ --bg: #f4f2ec; --gold: #8a6b20; }
+html.dark:root { /* 暗黑 */ --bg: #12141a; --gold: #c9a65c; }
+```
+
+> **那两个 `:root:root` 不是手滑写重了。** Element Plus 的变量定义在 `:root`（特异性 0,1,0），
+> 而它在本项目是按需注入的（`unplugin-vue-components` 的 `ElementPlusResolver`），
+> 注入时机晚于 `main.ts` 的静态 import —— 靠加载顺序压不住，只能靠特异性。
+> `:root:root` 是 (0,2,0) 稳赢 `:root`，`html.dark:root` 是 (0,2,1) 稳赢 `html.dark`。
+> 改的时候别「顺手简化」成 `:root`。
+
+#### 2、怎么切换
+
+- 偏好存在 pinia：`useMainStore().theme`，`true` = 明亮（默认）
+- 切换开关在 `src/components/Header.vue` 右上角
+- **应用**主题统一由 `src/App.vue` 调 `src/utils/theme.ts` 的 `applyTheme()`，
+  落在三处：`html.dark`（Element Plus 与本文件认它）、
+  `#app[data-theme]`（旧页面如 `views/bazi/home.vue` 的暗色样式认它）、`localStorage`。
+  放在根组件是为了覆盖没有 Header 的页面（如首页）。
+- `index.html` 里有一段内联脚本做**首屏防闪烁**，它读的键是 `yuanqi.theme`，
+  与 `theme.ts` 的 `THEME_STORAGE_KEY` 必须保持一致。
+
+#### 3、AI 命理推演页
+
+`src/views/fortune/index.vue`（路由 `/fortune`）。它把后端 `metaphysics-ai-fortune`
+的 SSE 事件铺成界面，接口定义在 `src/api/module/fortune/`。
+
+- 开发态走 `vite.config.ts` 里 `/graph` 的代理打到本机 8801，所以 `.env.dev` 的
+  `VITE_AI_API_BASE` 是 `/`（后端没配 CORS，只能走同源代理）
+- SSE 用原生 `fetch` + `ReadableStream` 自己解析，**不走 axios 实例** ——
+  那个实例会加 `_t` 时间戳、按 `code!==200` 抛错、60s 超时，三处都和流式冲突
+- 报告正文的 Markdown 由 `src/utils/markdown.ts` 渲染（自带实现，覆盖有限，见该文件注释）
+
+#### 4、生辰八字页（排盘）
+
+`src/views/bazi/home.vue`（路由 `/bazi`），接口定义在 `src/api/module/bazi/`。
+
+接口是 admin 的 `POST /home/pillarData`，**数据契约以后端
+`commons/common-ganzhi/docs/pillar-json-contract.md` 为准（当前 v6）**。
+改任何绑定前先读那份文档 —— 这张盘的结构在 v1→v6 之间改过好几次。
+
+**最容易踩的一处（曾经整页白屏的原因）**：柱子里的 `tianGan` / `diZhi` / `naYin`
+现在只序列化**中文名字符串**（`"甲"` / `"子"` / `"海中金"`），完整属性挪到了顶层一份
+`ganZhiDict`。所以不能再写 `item.tianGan.element.color` —— `"甲".element` 是 `undefined`，
+再取 `.color` 会在渲染期抛 TypeError，**Vue 整棵子树渲染中断，页面一片空白且控制台之外没有提示**。
+正确写法是查表：
+
+```ts
+const tianGan = (name?: string): Partial<GanZhi> =>
+    name ? ganZhiDict.value.tianGan[name] ?? {} : {};   // 模板里 tianGan(item.tianGan).element?.color
+```
+
+其余易混的形状：`starLuck` / `selfStarLuck` 是 `{name}` 对象、`shenShaList` 是 `[{name}]`、
+`hideGanGods` 是 `string[]` —— 三者各不相同，别记混。
+
+**大运 / 流年**：`PillarVo.yun.luckPillarList[i].child[j]` 已删除，改成按流派分组的
+`qiYunMap` / `daYunListMap`（key 是 `"1"` / `"2"`），大运是 `DaYun`、流年是 `LiuNian`。
+`qiYunView.currentDaYunIndex` 是服务端算好的「当前第几步」——
+**不要在前端比年份**（一步大运的真实区间可能横跨 11 个公历年，比年份会高亮错一格且看不出来）。
+切流派只改 `sect`，两个流派的数据都已在本地，**不需要重新请求**。
+
+**入参（与首页联动）**：`/bazi` 读 `route.query`：
+`dateType` / `sex` / `dateTime` / `username` / `longitude` / `useTrueSolarTime` /
+`withEquationOfTime` / `leapMonth`（开关类传 `'1'` 表示开）。
+首页录入弹窗会把出生地经度与真太阳时开关一起带过来。
+读取逻辑抽在 `applyRouteQuery()`，**`onMounted` 与 `watch(route.query)` 都会调它** ——
+同路由只换 query 时 vue-router 会复用组件实例，只挂在 `onMounted` 上会停在上一份命盘。
+
+出生地级联用 `getRegionChildren(parentCode)`（`GET /region/children`，不传即省级）。
+返回项的 `longitude` 是**字符串**，用前要 `Number()`。
+
+页头的「AI 推演」按钮会带着同一套生辰口径跳到 `/fortune`，
+那边再用 `buildSeedFromQuery()` 预填成一句话（只预填、不自动发送 —— 自动发问会立刻产生一次真实的模型调用）。
+
+##### 4.1 关系 / 格局 / 透干 / 通根：哪些是后端给的，哪些是本页推的
+
+页面下半部分（「格局与用神」「干支关系」「透干与通根」）的数据来源必须分清，**改之前先看这张表**：
+
+| 面板内容 | 来源 | 说明 |
+|---|---|---|
+| 八类合冲刑害（五合 / 六合 / 三合局 / 三会方 / 三刑 / 六冲 / 六害 / 暗合） | **后端 `mergeVo`** | 直接展示，列表项已是中文短语，别自己拆字重拼 |
+| 喜用 / 忌凶五行、十神 | **后端 `lifeTime`** | `joyousElements` 是 `Element[]` 不是 `string[]` |
+| 身强 / 身弱 | **后端 `lifeTime.strong`** | 派生值（`score > 50`），别在前端重复阈值 |
+| 格局名 | **后端 `caput.name`** | 只有名字 |
+| 半合 | 本页按标准定义推 | 后端只报「三支齐全」的三合局 |
+| 天干相冲 | 本页按标准定义推 | 后端只有五合 |
+| 透干 / 通根 | 本页按藏干推 | 后端不给「透没透」 |
+| 取格依据 | 本页**印证**后端结论 | 见下 |
+
+**取格依据为什么不自己算**：子平取格的正式规则是后端 `Caput` 里
+`[日干][月支] → 透干 → 格局` 那张上百条的表。前端复制一份必然与后端漂移。
+本页做的是「**印证**」：拿后端已给的月令藏干 / 十神 / 透出情况，
+只有当透出者的十神恰好拼出后端那个格名时，才把因果说出来
+（`取格依据` 左边框显示金色）；对不上就退回中性描述 ——
+「皆不透则酌取其一」或「属外格」。
+**这样永远不会出现「本页说的取法和接口给的格局不一致」。**
+
+```ts
+// 印证：十神 + '格' 必须等于后端给的格名，才敢展示因果
+const witness = exposedHideStems.value.find(h => h.god && `${h.god}格` === caputName.value);
+```
+
+`hideGanGods` 与藏干**同序**（后端 `God.getGods` 按 List 顺序逐个映射），
+所以 `hideGanGods[i]` 就是第 i 个藏干的十神，不必自己算十神。
+「透出」的准确语义是**出现在四柱的天干位**（年/月/日/时干），不含藏干
+（后端 `FourPillars.containsStem`）。
+
+**身强弱量尺注意**：`lifeTime.score` 量程是 **−100 ~ +100**（按柱位加权累加，
+月支占 ±40 为大头），判强弱的阈值是 **> 50**。所以刻度线上 50 那条线在 **75%** 处，
+不是中点 —— 画成「过半即身强」是错的。
+
+#### 5、主体宽度与页面轴心
+
+**除首页外，所有页面的主体宽度统一为 `$mainWidth`（1100px）**，和 Header 内层共用同一条竖轴，
+且左右内边距统一用 `$mainPad`。规则收在 `style.scss` 的 `@mixin main-container`：
+
+```scss
+.page {
+  @include main-container($mainPad);   // border-box + width:100% + max-width:1100 + margin:auto + 左右 padding
+  padding-top: 20px;
+  padding-bottom: 64px;                // 竖向内边距自己写，横向交给 mixin
+}
+```
+
+| 页面 | 容器 | 说明 |
+|---|---|---|
+| Header | `.header-inner` | 基准，全站对齐的参照 |
+| 首页 `#/index` | `.container` | **不适用**，全屏宇宙背景，`width: 100vw` |
+| 八字 `#/bazi` | `.page` | 曾为 1440px |
+| AI 推演 `#/fortune` | `.content` / `.composer-inner` | 曾为 1080 / 1040，输入条必须与正文同轴 |
+| 关于 `#/about` | `.main` | 内层告示卡仍限 900px（正文行不宜过长） |
+
+**为什么要 mixin 而不是直接写 `max-width: $mainWidth`**：本项目**没有全局 `box-sizing: border-box`**
+（`reset.css` / `style.css` 都没有），默认 `content-box` 下 `max-width` 只约束内容盒，
+两边的 padding 会额外撑出去 —— 写 `max-width: 1100px` 配 `padding: 0 24px`，实际外框是 **1148px**，
+比想约束的宽度还大，和 Header 反而对不齐。mixin 里就地声明 `box-sizing: border-box`，
+不动全局（全局改会影响一批 `width + padding` 混写的老样式，如时间轴 `.tl-yun`）。
+
+**连带约束：命盘表是流式列宽**。可用宽度只有 `1100 − 2×24 = 1052px`，
+旧的「6 数据柱 × 165 + 标签列 76 = 1066px」必然溢出。现在数据柱用
+`flex: 1 1 0` + `min-width: 0` 等分容器（列宽由容器决定，神煞的 `flex-wrap` 才真正生效），
+`min-width`（120px / 窄屏 104px）只做「窄到不可读」的下限兜底，
+触发时由 `.pillar-table` 自己的 `overflow-x` 承接 —— **页面本身不会出现横向滚动条**。
+
+改主体宽度时记得三处一起看：`$mainWidth`、命盘表的 `min-width` 兜底、以及 `.two-col` /
+`.sect-compare` 这些 `grid auto-fit` 的断点。

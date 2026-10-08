@@ -17,10 +17,11 @@ export const useUserInfoStore = defineStore('userInfo', {
         userInfo: null,
     }),
     persist: {
+        // 与迁移前的 key 保持一致，老用户已存的登录态能直接读回来
         key: 'userInfoStore',
         storage: localStorage,
-        paths: ['userInfo'], // 明确声明要持久化的字段
-    } as any,
+        pick: ['userInfo'], // 明确声明要持久化的字段（旧插件里叫 paths）
+    },
     actions: {
         setUserInfo(info: UserInfo | null) {
             this.userInfo = info;

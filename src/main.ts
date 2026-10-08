@@ -6,14 +6,19 @@ import {NavigationGuardNext, RouteLocationNormalized} from "vue-router";
 import LoadingBar from './components/LoadingBar.vue';
 import {createPinia} from 'pinia';
 // 持久化存储pinia
-import piniaPluginPersist from 'pinia-plugin-persist';
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 import ElementPlus from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 // 暗黑模式
 import 'element-plus/theme-chalk/dark/css-vars.css'
+// 设计令牌（颜色 / 圆角 / 阴影 / Element Plus 变量对齐）。
+// 注意：这里的先后顺序只是为了让「谁覆盖谁」读起来顺，真正保证生效的是
+// theme.css 里 :root:root 的特异性写法 —— Element Plus 的样式是按需注入的，
+// 到达顺序晚于本行，靠顺序压不住它。详见该文件顶部注释。
+import './assets/css/theme.css'
 
 const store = createPinia()
-store.use(piniaPluginPersist)
+store.use(piniaPluginPersistedstate)
 
 createApp(App)
     .use(store)
