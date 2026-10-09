@@ -241,6 +241,7 @@ import type {
   PillarPayload,
 } from '@/api/module/fortune';
 import {renderMarkdown} from '@/utils/markdown';
+import {goLogin, NeedLoginError} from '@/utils/auth';
 
 const SAMPLE_QUESTION = '我是公历1990年5月20日下午1点30分出生的，性别男，帮我看看整体运势';
 const FOLLOW_SAMPLES = ['为什么判断我有偏财？依据是什么？', '未来两个大运怎么样？'];
@@ -376,6 +377,13 @@ function send(preset?: string): void {
     onEvent: (ev) => handleEvent(ev, round),
   })
       .catch((e: unknown) => {
+        // 未登录 / 登录已过期：不做「连接中断」渲染，直接去登录页 ——
+        // 登录成功后会带回本页（见 utils/auth.ts 的 goLogin），
+        // 用户不必自己再点一次「AI 推演」。
+        if (e instanceof NeedLoginError) {
+          goLogin();
+          return;
+        }
         if (!round.error) {
           round.error = {
             code: 'NETWORK',
@@ -383,13 +391,31 @@ function send(preset?: string): void {
           };
         }
       })
-      .finally(() => {
-        round.streaming = false;
-        round.elapsed = Math.round(performance.now() - round.startedAt);
-        busy.value = false;
-        scrollToBottom();
-      });
-}
+      .finally(() => settle(round));
+  }
+
+  /**
+   * 收掉一轮的界面状态：报告定稿（切回 markdown 渲染）、按钮停止转圈。
+   *
+   * <p>为什么不能只在 {@code streamAsk} 的 finally 里做那件事：那个 finally 等的是
+   * <b>HTTP 连接关闭</b>，而不是「服务端说完了」。正常时两者几乎同时，但一旦响应
+   * 没能正常收尾（服务端在收尾阶段抛异常 → chunked 少了结束块；再经 vite / nginx
+   * 这类代理把上游断连吞掉），浏览器就会一直等下去。
+   * 症状正是「正文都看见了，按钮却永远在转，最后一段也不渲染」——
+   * 2026-10-09 就踩过：{@code LoginIntercept} 在 SSE 的 ASYNC 派发上抛
+   * {@code SaTokenContextException}，把响应收尾打断了。
+   *
+   * <p>所以判据改用<b>事件语义</b>：收到 {@code done}（正常说完）或
+   * {@code error}（说完了，只是坏消息）就算本轮结束，不必再等 TCP。
+   * 幂等 —— 事件先到、连接随后关闭时会再走一遍，第二次直接返回。
+   */
+  function settle(round: Round): void {
+    if (!round.streaming) return;
+    round.streaming = false;
+    round.elapsed = Math.round(performance.now() - round.startedAt);
+    busy.value = false;
+    scrollToBottom();
+  }
 
 function handleEvent(ev: { event: string; data: any }, round: Round): void {
   switch (ev.event) {
@@ -420,10 +446,14 @@ function handleEvent(ev: { event: string; data: any }, round: Round): void {
       // 全文为准，且是整体替换而非追加 —— 这样既不会得到两倍正文，
       // 又能在 delta 丢包（断线重连、粘包）时把结果纠正过来
       if (ev.data?.text) round.report = ev.data.text;
+      // 服务端已经把这一轮说完了，界面立刻定稿，不等连接关闭
+      settle(round);
       break;
 
     case 'error':
       round.error = ev.data as ErrorPayload;
+      // error 也是终态：流水线以它收场，之后不会再有任何事件
+      settle(round);
       break;
   }
   scrollToBottom();

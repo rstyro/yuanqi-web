@@ -15,6 +15,14 @@ declare module 'vue-router'{
          * <p>⚠️ 改了那个页面的 .composer 高度，这里要跟着调。
          */
         backtopBottom?:number
+        /**
+         * 进入该页需要「用户体系」登录（后端 StpKit.USER，即 /user/login 登进来的身份）。
+         *
+         * <p>守卫在 `src/main.ts` 的 beforeEach 里。这里**只是省一次注定失败的请求**，
+         * 不是安全边界 —— 真正的闸门在后端（`security.common.user-paths` 里的 `/graph/**`）。
+         * 别因为「守卫拦住了」就以为后端可以松掉。
+         */
+        requiresLogin?:boolean
     }
 }
 
@@ -52,6 +60,42 @@ const routes:Array<RouteRecordRaw> = [     //主路由模块容器
             transition:'animate__fadeIn',
             // 把「回到顶部」抬到吸底输入区之上，见 RouteMeta 的说明
             backtopBottom: 208,
+            // 后端 /graph/** 已改为必须登录（security.common.user-paths）。
+            // 这里提前拦一道：不然用户打完一大段问题才被 401 挡回来，白等。
+            requiresLogin: true,
+        }
+    },
+    {
+        /**
+         * 登录页。
+         *
+         * <p>和首页一样是**全屏、不带 Header** 的独立版式（星空背景见
+         * `components/AuthShell.vue`）。不带 Header 的原因有两个：
+         * 一是首页也不带，两页之间切换视觉才连贯；
+         * 二是登录/注册这种「半路被拦下来的落点」不该给一堆导航岔路。
+         *
+         * <p>刻意**不**参与 requiresLogin，也**不**做「已登录就自动跳走」——
+         * 本地 token 还在但服务端会话已过期时，自动跳走会让用户彻底进不来登录页。
+         */
+        path: '/login',
+        name: 'login',
+        component: () => import("@/views/login/index.vue"),
+        meta:{
+            title:"登录",
+            transition:'animate__fadeIn'
+        }
+    },
+    {
+        /**
+         * 注册页。与登录页共用 `components/AuthShell.vue` 的全屏外壳，
+         * 落点（`?redirect=`）与登录页语义一致。
+         */
+        path: '/register',
+        name: 'register',
+        component: () => import("@/views/register/index.vue"),
+        meta:{
+            title:"注册",
+            transition:'animate__fadeIn'
         }
     },
     {

@@ -43,7 +43,9 @@ export default defineConfig({
     ],
     server: {
         proxy: {
-            // AI 命理推演的 SSE 接口打到本机 8801（metaphysics-ai-fortune）。
+            // AI 命理推演的 SSE 接口打到本机 8800（metaphysics-admin）。
+            // 2026-10-09 起该能力已从独立服务 metaphysics-ai-fortune（:8801）
+            // 并入 admin 单体，接口路径 /graph/** 未变，只有端口从 8801 变 8800。
             // 后端没配 CORS，所以只能走同源代理，前端才敢写相对路径。
             // 这里的 '/graph' 必须和 src/api/module/fortune/constants.ts 里的
             // SSE_ASK_PATH 对得上；改了一处忘了另一处，症状是 404 而不是报错。
@@ -52,7 +54,7 @@ export default defineConfig({
             // 不会攒到响应结束才发给浏览器。若将来发现「报告一次性蹦出来」，
             // 先怀疑中间多了一层压缩代理，而不是这里。
             '/graph': {
-                target: 'http://127.0.0.1:8801',
+                target: 'http://127.0.0.1:8800',
                 changeOrigin: true,
                 // SSE 是长连接，别让代理提前超时断流
                 timeout: 0,

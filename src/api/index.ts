@@ -1,7 +1,8 @@
 import axios, {AxiosRequestConfig, AxiosResponse, AxiosError, InternalAxiosRequestConfig} from "axios";
 import { useUserInfoStore } from '@/store/userInfo';
 import { CustomRequestConfig,ApiResponse } from '@/api/types';
-import {ElMessage, ElMessageBox} from "element-plus";
+import {ElMessage} from "element-plus";
+import {goLogin, isNeedLogin, NeedLoginError} from '@/utils/auth';
 
 // axios 配置
 const config: AxiosRequestConfig = {
@@ -79,22 +80,14 @@ http.interceptors.response.use(
 
         //  code === 200 表示成功
         if (res.code !== 200) {
-            // 可以在这里处理特定的业务错误码
-            // 例如 token 过期 (假设 401 表示 token 过期)
-            if (res.code === 401) {
-                const userInfoStore = useUserInfoStore();
-                userInfoStore.clearUserInfo(); // 清除用户信息
-                ElMessageBox.confirm('登录状态已过期，请重新登录', '确认退出', {
-                    confirmButtonText: '重新登录',
-                    cancelButtonText: '取消',
-                    type: 'warning'
-                }).then(() => {
-                    window.location.reload(); // 刷新页面或跳转到登录页
-                }).catch(() => {
-                    // 用户取消操作
-                });
+            // 未登录 / 登录已过期：清掉本地登录态并跳登录页。
+            // 判据统一放在 utils/auth.ts —— 同一个信号还有另外两条链路（SSE 的 fetch、
+            // 路由守卫）要认，散着写迟早会漏。
+            if (isNeedLogin(response.status, res.code)) {
+                ElMessage.warning('登录状态已过期，请重新登录');
+                goLogin();
                 // 拒绝 Promise，阻止后续 then 执行
-                return Promise.reject(new Error(res.msg || `Authentication failed (Code: ${res.code})`));
+                return Promise.reject(new NeedLoginError(res.msg));
             }
             // 其他业务错误，根据配置决定是否显示错误消息
             const showError = config.showError !== false; // 默认为 true
@@ -120,6 +113,15 @@ http.interceptors.response.use(
         if (axios.isCancel(error)) {
             console.log('Request canceled:', error.message);
             return Promise.reject(error);
+        }
+
+        // 未登录 / 登录已过期。注意这条分支必须在下面的「网络错误」之前 ——
+        // /graph/** 的登录闸门回的是 **401 带响应体**，走的是这个 error 分支
+        // （axios 默认把非 2xx 判为 error），而不是上面那个 code !== 200 的分支。
+        if (isNeedLogin(error.response?.status, (error.response?.data as ApiResponse | undefined)?.code)) {
+            ElMessage.warning('登录状态已过期，请重新登录');
+            goLogin();
+            return Promise.reject(new NeedLoginError());
         }
 
         // 网络错误或无响应

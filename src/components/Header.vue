@@ -23,12 +23,27 @@
         <el-menu-item index="bazi">生辰八字</el-menu-item>
         <el-menu-item index="fortune">AI 推演</el-menu-item>
         <el-menu-item index="about">关于</el-menu-item>
+        <!-- 已在登录页就不再显示「登录」—— 那个入口点不点都是原地不动 -->
+        <el-menu-item v-if="!userInfoStore.isLoggedIn && route.name !== 'login'" index="login">
+          登录
+        </el-menu-item>
 <!--        <el-sub-menu index="user">-->
 <!--          <template #title>我的</template>-->
 <!--          <el-menu-item index="edit">编辑</el-menu-item>-->
 <!--          <el-menu-item index="logout">退出</el-menu-item>-->
 <!--        </el-sub-menu>-->
       </el-menu>
+      <!--
+        已登录时在主题开关左边挂一个「用户名 + 退出」。
+        刻意不用 el-menu-item 做退出：那个菜单开了 :router，选中就会 push('/logout')，
+        而 /logout 并不存在 —— 会留一条「No match found」的路由警告。退出是个动作，不是一条路由。
+      -->
+      <div v-if="userInfoStore.isLoggedIn" class="user-area">
+        <el-tooltip :content="nickName" placement="bottom">
+          <span class="user-name">{{ nickName }}</span>
+        </el-tooltip>
+        <el-button link class="logout" @click="handleLogout">退出</el-button>
+      </div>
       <el-switch
           v-model="data.theme"
           class="theme-switch"
@@ -44,17 +59,51 @@
 
 <script setup lang="ts">
 import {Ref, ref, computed, watch, reactive, onMounted} from 'vue';
-import {useRoute} from "vue-router";
+import {useRoute, useRouter} from "vue-router";
 import logoImg from '@/assets/images/logo.png';
 import { Sunny, Moon } from '@element-plus/icons-vue';
+import {ElMessage} from "element-plus";
 import {useMainStore} from "@/store/index.js"
+import {useUserInfoStore} from "@/store/userInfo";
+import {logout} from "@/api/module/user";
 import {applyTheme} from "@/utils/theme";
+import {LOGIN_PATH} from "@/utils/auth";
 
 const route = useRoute();
+const router = useRouter();
 const store = useMainStore();
+const userInfoStore = useUserInfoStore();
 const activeIndex = ref(computed(() => route.name));
 const handleSelect = (key: string, keyPath: string[]) => {
   // console.log(key, keyPath);
+}
+
+/** 昵称兜底：老用户存的登录态里没有 nickName（见 store/userInfo.ts 的说明） */
+const nickName = computed(() => userInfoStore.getNickName || '已登录');
+
+/**
+ * 退出登录。
+ *
+ * <p>顺序很关键：**先请求、后清本地**。axios 的请求拦截器是在发请求那一刻
+ * 从 store 里取 token 的，先清就等于把这次 logout 也发成了未携带 token 的请求，
+ * 换个 401 + 一次多余的跳登录。
+ *
+ * <p>服务端清不掉（网络断了 / token 已过期）也必须把本地清了 ——
+ * 否则界面显示「已登录」、接口却全 401，用户只能靠清浏览器缓存自救。
+ */
+function handleLogout() {
+  logout()
+      .catch(() => {
+        /* 忽略：本地照样清 */
+      })
+      .finally(() => {
+        userInfoStore.clearUserInfo();
+        ElMessage.success('已退出登录');
+        // 当前页需要登录的话，光清 store 会卡在一个只会报 401 的页面上
+        if (route.meta.requiresLogin) {
+          void router.replace(LOGIN_PATH);
+        }
+      });
 }
 
 const data = reactive<any>({
@@ -114,6 +163,33 @@ header {
       width: auto;
       margin-left: 24px;
       margin-right: 96px;
+    }
+
+    /* 用户名 + 退出。与主题开关同高，靠 line-height 对齐菜单文字 */
+    .user-area {
+      display: flex;
+      align-items: center;
+      flex: none;
+      height: $headerH;
+      font-size: 14px;
+      color: var(--text-dim);
+
+      .user-name {
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: default;
+      }
+
+      .logout {
+        margin-left: 8px;
+        color: var(--text-faint);
+
+        &:hover {
+          color: var(--gold);
+        }
+      }
     }
 
     .logo {

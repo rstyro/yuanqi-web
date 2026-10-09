@@ -4,6 +4,13 @@ import {defineStore} from "pinia";
 interface UserInfo {
     token: string;
     uid: string;
+    /**
+     * 昵称，仅用于界面展示（Header 上的用户名）。
+     *
+     * <p>可选：老用户 localStorage 里存的对象没有这个字段，读回来是 undefined。
+     * 别把它当成「一定有」来用，展示处要有兜底文案。
+     */
+    nickName?: string;
     // 可根据实际需求添加更多字段，如 username, avatar 等
 }
 
@@ -36,5 +43,6 @@ export const useUserInfoStore = defineStore('userInfo', {
         isLoggedIn: (state) => !!state.userInfo?.token,
         getToken: (state) => state.userInfo?.token || '',
         getUid: (state) => state.userInfo?.uid || '',
+        getNickName: (state) => state.userInfo?.nickName || '',
     },
 });

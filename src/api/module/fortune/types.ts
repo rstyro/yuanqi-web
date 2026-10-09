@@ -1,7 +1,7 @@
 /**
  * AI 命理推演接口类型。
  *
- * 契约以后端 {@code top.lrshuai.ai.fortune.FortuneSse} 为准，
+ * 契约以后端 {@code top.lrshuai.admin.fortune.fortune.FortuneSse} 为准，
  * 改后端事件时记得回来同步这里。
  */
 import type {PillarVo, QiYunView} from "@/api/module/bazi/types";
