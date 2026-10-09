@@ -119,7 +119,7 @@ const router = useRouter();
 const formDialogVisible = ref(false);
 
 const form = reactive<BaziQuery>({
-  dateType: 2,
+  dateType: 1,
   sex: 1,
   dateTime: '',
   username: '',

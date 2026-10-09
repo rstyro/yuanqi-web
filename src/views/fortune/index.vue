@@ -133,7 +133,9 @@
                 <span class="pillar-label">{{ p.label }}</span>
                 <el-tag v-if="!p.ok" type="danger" size="small" effect="plain" round>降级</el-tag>
               </div>
-              <p class="pillar-text">{{ p.text }}</p>
+              <!-- 每柱结论是 markdown（后端提示词里有表格/标题），与报告共用同一渲染器；
+                   渲染器先转义 HTML 再做行内替换，v-html 不会执行模型输出 -->
+              <div class="pillar-text markdown" v-html="renderPillarText(p)"></div>
             </div>
           </div>
 
@@ -503,6 +505,11 @@ function renderReport(round: Round): string {
   return renderMarkdown(round.report);
 }
 
+/** 四柱卡片正文：与报告同一个渲染器（含转义）。柱子事件一次到位，不存在流式重解析的性能顾虑 */
+function renderPillarText(p: PillarPayload): string {
+  return renderMarkdown(p.text);
+}
+
 async function copyReport(round: Round): Promise<void> {
   if (!round.report) return;
   try {
@@ -857,8 +864,62 @@ onUnmounted(() => {
   font-size: 13px;
   line-height: 1.8;
   color: var(--text-dim);
-  white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* 卡片里的 markdown：比报告区窄（minmax(210px,1fr)），密度整体收紧一档。
+   写成 .pillar-text.markdown 双类，特异性压过下面的 .markdown 同名规则 */
+.pillar-text.markdown {
+  :deep(h1),
+  :deep(h2),
+  :deep(h3),
+  :deep(h4),
+  :deep(h5),
+  :deep(h6) {
+    font-size: 13px;
+    margin: 10px 0 4px;
+    padding-left: 0;
+    border-left: none;
+  }
+
+  :deep(h1:first-child),
+  :deep(h2:first-child),
+  :deep(h3:first-child) {
+    margin-top: 0;
+  }
+
+  :deep(p) {
+    margin: 0 0 8px;
+  }
+
+  :deep(p:last-child) {
+    margin-bottom: 0;
+  }
+
+  :deep(ul),
+  :deep(ol) {
+    margin: 0 0 8px;
+    padding-left: 18px;
+  }
+
+  :deep(blockquote) {
+    margin: 0 0 8px;
+    padding: 4px 10px;
+  }
+
+  :deep(table) {
+    font-size: 12px;
+    margin: 0 0 8px;
+  }
+
+  :deep(th),
+  :deep(td) {
+    padding: 4px 6px;
+  }
+
+  :deep(hr) {
+    margin: 10px 0;
+  }
 }
 
 /* ==================== 报告 ==================== */
@@ -1062,6 +1123,9 @@ onUnmounted(() => {
   background: var(--bg-blur);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+  // ⚠️ 这一条是常驻吸底条，「回到顶部」按钮必须浮在它上面：
+  //    z-index 见 App.vue 的 .el-backtop（30），高度见 router/index.ts 里
+  //    /fortune 的 backtopBottom（208）。改了本块高度，那两处要跟着核。
 }
 
 .composer-inner {

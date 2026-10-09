@@ -3,7 +3,18 @@
     <transition :enter-active-class="`animate__animated  ${route.meta.transition}`">
       <component :is="Component"></component>
     </transition>
-    <el-backtop :right="100" :bottom="100"/>
+    <!--
+      回到顶部。下面两条都踩过坑，改之前先读：
+
+      1. target 必须显式写成 #app。本项目的滚动容器是 #app（见下方 #app 样式里的
+         height:100vh + overflow:auto），而不是 document。el-backtop 不传 target 时
+         默认监听 document / documentElement，滚动事件永远不触发 —— 所以它此前
+         「从来没在页面上出现过」，根因不是样式没调好。
+      2. bottom 由路由 meta 决定（见 router/index.ts 的 backtopBottom）。带吸底输入区的
+         页面要把按钮抬到输入区之上，否则会被 .composer（position:sticky; z-index:20）
+         压住 —— 看得见也点不到。没有吸底条的普通长页面用默认值即可。
+    -->
+    <el-backtop target="#app" :right="28" :bottom="route.meta.backtopBottom || 96"/>
   </router-view>
 </template>
 
@@ -78,5 +89,20 @@ onMounted(() => {
   }
 
 
+}
+
+/* ==================== 回到顶部 ==================== */
+
+/*
+  组件默认 z-index 只有 5，而 AI 推理页的吸底输入条是 z-index: 20 ——
+  一旦两者重叠，按钮就会被压在输入条的毛玻璃底下，「看得见却点不到」。
+  抬到 30 保证任何情况下都点得到。
+
+  正常情况压根不会重叠：按钮距底 208px，输入条最高约 193px（见 router/index.ts
+  里 backtopBottom 的算式）。这条只是兜底 —— 真出现重叠，说明输入条长高了，
+  该去把 backtopBottom 调大，而不是靠 z-index 硬撑。
+*/
+.el-backtop {
+  z-index: 30;
 }
 </style>
