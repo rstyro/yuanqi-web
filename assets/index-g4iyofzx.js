@@ -1,0 +1,1 @@
+import{h as r}from"./index-BGUgwRdV.js";const o=s=>r.post("user/sendEmail",s),e=s=>r.post("user/login",s),n=s=>r.post("user/register",s),u=()=>r.post("user/logout",{});export{u as a,e as l,n as r,o as s};
