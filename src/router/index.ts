@@ -99,6 +99,26 @@ const routes:Array<RouteRecordRaw> = [     //主路由模块容器
         }
     },
     {
+        /**
+         * 个人资料页。入口在 Header 的「头像 + 昵称」下拉里（components/UserMenu.vue）。
+         *
+         * <p>必须 `requiresLogin`：它读的是 store 里的登录态、调的是
+         * `/user/getUserInfo` 与 `/user/updateUserInfo` —— 两个接口都在
+         * `security.common.excludes` 之外，未登录必 401。
+         * 守卫在这里拦一道只是省掉这几次注定失败的请求。
+         *
+         * <p>不带 `backtopBottom`：这页是固定高度的卡片，不存在长滚动。
+         */
+        path: '/profile',
+        name: 'profile',
+        component: () => import("@/views/profile/index.vue"),
+        meta:{
+            title:"个人资料",
+            transition:'animate__fadeIn',
+            requiresLogin: true,
+        }
+    },
+    {
         path: '/test',
         name: 'test',
         component: () => import("@/views/bazi/test.vue"),

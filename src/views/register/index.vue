@@ -123,6 +123,7 @@ import AuthShell from '@/components/AuthShell.vue';
 import {register, sendEmailCode} from '@/api/module/user';
 import type {MiniUserVo} from '@/api/module/user';
 import {useUserInfoStore} from '@/store/userInfo';
+import {toUserInfo} from '@/utils/user';
 import {DEFAULT_REDIRECT, LOGIN_PATH, resolveRedirect} from '@/utils/auth';
 
 /** 发码后的冷却秒数。跟后端无关，纯粹防连点 */
@@ -269,11 +270,7 @@ function submit(): void {
             error.value = '注册已提交但没拿到 token，请改用登录页登录';
             return;
           }
-          userInfoStore.setUserInfo({
-            token: vo.token,
-            uid: String(vo.userId ?? ''),
-            nickName: vo.nickName,
-          });
+          userInfoStore.setUserInfo(toUserInfo(vo));
           ElMessage.success('注册成功，已自动登录');
           // 与登录页同理：用 replace，别把注册页留在历史里
           void router.replace(resolveRedirect(route.query.redirect, DEFAULT_REDIRECT));

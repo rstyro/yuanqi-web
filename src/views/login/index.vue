@@ -116,6 +116,7 @@ import {login, sendEmailCode} from '@/api/module/user';
 import type {MiniUserVo} from '@/api/module/user';
 import {CODE_FREE_ACCOUNTS} from '@/api/module/user';
 import {useUserInfoStore} from '@/store/userInfo';
+import {toUserInfo} from '@/utils/user';
 import {DEFAULT_REDIRECT, resolveRedirect} from '@/utils/auth';
 
 /** 发码后的冷却秒数。跟后端无关，纯粹防连点 */
@@ -236,11 +237,7 @@ function submit(): void {
             error.value = '登录成功但没拿到 token，请检查后端 /user/login 的返回结构';
             return;
           }
-          userInfoStore.setUserInfo({
-            token: vo.token,
-            uid: String(vo.userId ?? ''),
-            nickName: vo.nickName,
-          });
+          userInfoStore.setUserInfo(toUserInfo(vo));
           ElMessage.success('登录成功');
           // 用 replace：登录页不该留在历史里，否则用户按返回又回到登录页
           void router.replace(resolveRedirect(route.query.redirect, DEFAULT_REDIRECT));

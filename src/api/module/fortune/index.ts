@@ -21,26 +21,34 @@
  * 用 {@code fetch} 就没法蹭 axios 的请求拦截器了，这正是「不用 axios」的额外代价。
  * 未登录时后端回 401，本文件把它转成 {@link NeedLoginError}，由调用方跳登录页。
  */
-import {SSE_ASK_PATH} from './constants';
+import {REPORT_PDF_PATH, SSE_ASK_PATH} from './constants';
 import type {FortuneAskParams, FortuneEvent} from './types';
 import {useUserInfoStore} from '@/store/userInfo';
 import {HTTP_UNAUTHORIZED, NeedLoginError} from '@/utils/auth';
 
 export * from './types';
-export {SSE_ASK_PATH} from './constants';
+export {REPORT_PDF_PATH, SSE_ASK_PATH} from './constants';
+// 历史会话（普通 JSON 接口，走 axios 实例）。刻意逐个具名导出而不是 `export *` ——
+// history.ts 自己也 `export * from './types'`，两边都用星号会让同一批类型名出现两条导出路径。
+export {listSessions, getSessionDetail, deleteSession, downloadReportPdf} from './history';
 
 /**
- * 解析出真正要请求的地址。
+ * 解析出 AI 模块接口的基址（以 / 结尾，可直接拼相对路径）。
  *
  * <p>开发态 {@code VITE_AI_API_BASE=/}，配合 {@code vite.config.ts} 里
- * {@code /graph} 的代理打到本机 8800 —— 这样既躲开跨域（后端没配 CORS），
+ * {@code /graph}、{@code /chat} 的代理打到本机 8800 —— 这样既躲开跨域（后端没配 CORS），
  * 前端代码里也不用区分「本地还是网关」。
  *
  * <p>生产态指向网关地址，例如 {@code https://xxx/metaphysics/}。
  */
-export function resolveAskUrl(): string {
+export function resolveApiBase(): string {
   const base: string = import.meta.env.VITE_AI_API_BASE ?? '/';
-  return base.endsWith('/') ? `${base}${SSE_ASK_PATH}` : `${base}/${SSE_ASK_PATH}`;
+  return base.endsWith('/') ? base : `${base}/`;
+}
+
+/** 推演接口的完整地址（SSE 用原生 fetch，拿不到 axios 实例的 baseURL） */
+export function resolveAskUrl(): string {
+  return `${resolveApiBase()}${SSE_ASK_PATH}`;
 }
 
 export interface StreamAskOptions extends FortuneAskParams {

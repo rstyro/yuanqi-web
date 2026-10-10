@@ -2,236 +2,346 @@
   <div class="container">
     <Header></Header>
 
-    <div class="content">
-      <!-- ==================== 页头 ==================== -->
-      <section class="hero">
-        <div class="seal">命</div>
-        <div class="hero-text">
-          <h1>AI 命理推演</h1>
-          <p>一句话说出出生时间 —— 命盘先出，四柱次之，解读流式补齐</p>
-        </div>
-        <div class="hero-actions">
-          <el-tooltip v-if="sessionId" :content="sessionId" placement="bottom">
-            <el-tag type="info" effect="plain" round>会话 {{ sessionId.slice(0, 8) }}</el-tag>
+    <!--
+      方案 A 的两栏骨架：左边历史会话，右边主区。
+      主区不再单独让位 —— 侧栏宽度由 CSS 的 .hist 定，主区 flex 自适应。
+    -->
+    <div class="layout" :class="{'is-rail': rail && !overlayOpen, 'is-overlay': overlayOpen}">
+      <div v-if="overlayOpen" class="hist-veil" @click="overlayOpen = false"></div>
+
+      <!--
+        历史会话栏（方案 A 的左栏）。
+
+        为什么常驻而不是收进抽屉：这一页的主区是长阅读（命盘 + 四柱 + 多轮问答），
+        同时开着两三个盘时，「我现在在哪个会话」必须一眼可见 ——
+        一旦变成「点开才知道」的状态，就会点错盘。
+
+        窄屏（<900px）自动收成图标栏；此时点「历史」把它摊成覆盖层，
+        而不是继续挤压本来就不够的报告区。
+      -->
+      <aside class="hist">
+        <div class="hist-head">
+          <el-tooltip content="开一条新对话" placement="right" :disabled="showText">
+            <button class="hist-new" type="button" :disabled="busy" @click="newSession">
+              <el-icon><Plus/></el-icon>
+              <span v-if="showText">新对话</span>
+            </button>
           </el-tooltip>
-          <el-tag :type="busy ? 'warning' : 'success'" effect="plain" round>
-            {{ busy ? '推演中' : '空闲' }}
-          </el-tag>
-          <el-button plain :icon="RefreshRight" :disabled="busy || !rounds.length" @click="reset">
-            新会话
-          </el-button>
         </div>
-      </section>
 
-      <!-- ==================== 命盘（会话级，只推一次） ==================== -->
-      <el-card v-if="chart" class="chart-card" shadow="never">
-        <template #header>
-          <div class="chart-head">
-            <div class="ganzhi">{{ disp(chart.ganZhi) }}</div>
-            <div class="chart-meta">
-              <el-tag v-if="chart.zodiac" size="small" effect="plain">生肖 · {{ disp(chart.zodiac) }}</el-tag>
-              <el-tag v-if="chart.starSign" size="small" effect="plain">星座 · {{ disp(chart.starSign) }}</el-tag>
-              <el-tag v-if="chart.lunarDate" size="small" effect="plain">农历 · {{ shortDate(chart.lunarDate) }}</el-tag>
-              <el-tag v-if="chart.gregorianDate" size="small" effect="plain">公历 · {{ shortDate(chart.gregorianDate) }}</el-tag>
-              <!-- 刻意不展示 chart.sect：它是个流派编号（如 "2"），不是给人看的文案 -->
-            </div>
-          </div>
-        </template>
+        <div class="hist-body">
+          <p v-if="histLoading" class="hist-tip">正在读取历史会话…</p>
+          <p v-else-if="!sessions.length" class="hist-tip">还没有历史会话。聊过一次之后，这里会留档。</p>
 
-        <!-- 属性 × 柱位 的矩阵。列是动态的：某一柱缺失时不硬塞空列 -->
-        <el-table :data="chartRows" border size="small" class="pillar-table">
-          <el-table-column prop="label" label="" width="66" align="left">
-            <template #default="{ row }">
-              <span class="attr-label">{{ row.label }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column
-              v-for="col in chartColumns"
-              :key="col.key"
-              :label="col.label"
-              min-width="112"
-              align="center"
+          <el-tooltip
+              v-for="item in sessions"
+              :key="item.sessionId"
+              placement="right"
+              :content="item.ganZhi || item.title || '未命名会话'"
+              :disabled="showText"
           >
-            <template #default="{ row }">
-              <span class="cell" :class="row.cls">{{ row.cells[col.index] }}</span>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <template v-if="chart.qiYunView">
-          <el-divider content-position="left">大运流转</el-divider>
-          <el-descriptions :column="4" size="small" border>
-            <el-descriptions-item label="当前大运">
-              第 {{ chart.qiYunView.currentDaYunIndex }} 步
-            </el-descriptions-item>
-            <el-descriptions-item label="起运年份">
-              {{ chart.qiYunView.currentDaYunStartYear }} 年
-            </el-descriptions-item>
-            <el-descriptions-item label="当前年龄">
-              {{ chart.qiYunView.currentAge }} 岁
-            </el-descriptions-item>
-            <el-descriptions-item label="虚岁">
-              {{ chart.qiYunView.currentNominalAge }} 岁
-            </el-descriptions-item>
-          </el-descriptions>
-        </template>
-      </el-card>
-
-      <!-- ==================== 空态 ==================== -->
-      <el-empty v-if="!rounds.length" description="说一句出生时间，开始推演" :image-size="130">
-        <el-button class="sample-btn" plain @click="send(SAMPLE_QUESTION)">{{ SAMPLE_QUESTION }}</el-button>
-        <p class="empty-hint">
-          排盘是纯计算，毫秒级，不走模型；解读才调模型。<br/>
-          命中缓存的那一层会打上「缓存」标记 —— 那一轮不会真的花钱。
-        </p>
-      </el-empty>
-
-      <!-- ==================== 对话流 ==================== -->
-      <article v-for="(round, index) in rounds" :key="index" class="round">
-        <div class="ask">
-          <span>{{ round.question }}</span>
-        </div>
-
-        <el-card class="answer" shadow="never">
-          <template #header>
-            <div class="answer-head">
-              <el-tag
-                  v-for="stage in stagesOf(round)"
-                  :key="stage.key"
-                  class="stage-tag"
-                  size="small"
-                  round
-                  :type="stageTagType(round, stage.key)"
-                  :effect="stageState(round, stage.key) === 'running' ? 'dark' : 'plain'"
+            <div class="hist-item" :class="{'is-active': item.sessionId === sessionId}">
+              <button
+                  class="hist-hit"
+                  type="button"
+                  :disabled="openingId === item.sessionId"
+                  @click="openHistory(item)"
               >
-                <i class="dot" :class="'is-' + stageState(round, stage.key)"></i>{{ stage.label }}
-              </el-tag>
-              <el-tag v-if="round.followUp" size="small" round type="info" effect="plain">
-                复用上轮命盘与生辰
-              </el-tag>
-              <el-tooltip v-for="(hit, i) in round.cacheHits" :key="'c' + i" content="这一层没调模型，直接回放了上次的结果">
-                <el-tag size="small" round class="cache-tag">{{ hit }}</el-tag>
-              </el-tooltip>
-
-              <span class="head-spacer"></span>
-              <span v-if="round.elapsed" class="elapsed">{{ fmtElapsed(round.elapsed) }}</span>
-              <el-tooltip v-if="!round.streaming && round.report" content="复制报告全文" placement="top">
-                <el-button link :icon="CopyDocument" @click="copyReport(round)"/>
-              </el-tooltip>
-            </div>
-          </template>
-
-          <!-- 四柱逐根点亮。后端是并发推的，顺序靠前端排 -->
-          <div v-if="orderedPillars(round).length" class="pillars">
-            <div
-                v-for="p in orderedPillars(round)"
-                :key="p.pillar"
-                class="pillar"
-                :class="{ 'is-failed': !p.ok }"
-            >
-              <div class="pillar-head">
-                <span class="pillar-label">{{ p.label }}</span>
-                <el-tag v-if="!p.ok" type="danger" size="small" effect="plain" round>降级</el-tag>
-              </div>
-              <!-- 每柱结论是 markdown（后端提示词里有表格/标题），与报告共用同一渲染器；
-                   渲染器先转义 HTML 再做行内替换，v-html 不会执行模型输出 -->
-              <div class="pillar-text markdown" v-html="renderPillarText(p)"></div>
-            </div>
-          </div>
-
-          <!-- 正文：流式期间走纯文本（每片 delta 重解析一遍 markdown 会把页面拖卡），收尾后再渲染 -->
-          <el-skeleton v-if="round.streaming && !round.report" :rows="4" animated class="report-skeleton"/>
-          <div v-else-if="round.streaming" class="report plain">
-            {{ round.report }}<span class="caret"></span>
-          </div>
-          <template v-else-if="round.report">
-            <!-- 首屏：只有「核心结论」这几条（后端提示词保证 5~8 条、每条带依据+应期） -->
-            <div class="report markdown" v-html="renderHead(round)"></div>
-
-            <!-- 详章：按 metaphysics 仓库 docs/ai-fortune-prompt-tuning.md §三③ 的约定折叠。
-                 模型没按约定输出时 hasDetail() 为 false，下面的块整体不出现 —— 退化成「全展示」 -->
-            <div v-if="hasDetail(round)" class="detail">
-              <button class="detail-toggle" type="button" @click="round.detailOpen = !round.detailOpen">
-                <el-icon class="detail-chev" :class="{ 'is-open': round.detailOpen }">
-                  <ArrowRight/>
-                </el-icon>
-                <span>{{ round.detailOpen ? '收起详细分析' : '展开详细分析' }}</span>
-                <span class="detail-count">{{ detailCount(round) }} 节</span>
+                <span class="h-dot" :class="'is-' + statusKey(item.status)"></span>
+                <span v-if="showText" class="h-main">
+                  <span class="h-gz">{{ item.ganZhi || item.title || '未命名会话' }}</span>
+                  <span class="h-sub">
+                    <span v-if="item.roundCount > 1">{{ item.roundCount }} 轮</span>
+                    <span>{{ shortWhen(item.lastActiveTime) }}</span>
+                  </span>
+                </span>
               </button>
-              <div
-                  v-show="round.detailOpen"
-                  class="report markdown detail-body"
-                  v-html="renderDetail(round)"
-              ></div>
+              <button
+                  v-if="showText"
+                  class="h-del"
+                  type="button"
+                  title="删除这条会话"
+                  @click.stop="removeSession(item)"
+              >
+                <el-icon><Delete/></el-icon>
+              </button>
+            </div>
+          </el-tooltip>
+        </div>
+
+        <div class="hist-foot">
+          <button class="rail-btn" type="button" @click="toggleRail">
+            <el-icon>
+              <ArrowLeft v-if="!rail"/><ArrowRight v-else/>
+            </el-icon>
+            <span v-if="showText">{{ rail && !overlayOpen ? '展开' : '收起' }}</span>
+          </button>
+        </div>
+      </aside>
+
+      <!--
+        主区。composer 是吸底的（position: sticky; bottom: 0），必须和 .content
+        待在同一个「有高度的块容器」里 —— 把两者拆进 flex / grid 的不同行，
+        sticky 就失去可粘区间了，输入框会跟着内容一起滚走。
+      -->
+      <div class="main">
+      <div class="content">
+        <!-- ==================== 页头 ==================== -->
+        <section class="hero">
+          <div class="seal">命</div>
+          <div class="hero-text">
+            <h1>AI 命理推演</h1>
+            <p>一句话说出出生时间 —— 命盘先出，四柱次之，解读流式补齐</p>
+            <!-- 左栏负责「列表里哪条是高亮」，这里补一句「它叫什么」，两处一起才够定位 -->
+            <p v-if="currentTitle" class="hero-current">当前会话 · {{ currentTitle }}</p>
+          </div>
+          <div class="hero-actions">
+            <el-tooltip v-if="sessionId" :content="sessionId" placement="bottom">
+              <el-tag type="info" effect="plain" round>会话 {{ sessionId.slice(0, 8) }}</el-tag>
+            </el-tooltip>
+            <el-tag :type="busy ? 'warning' : 'success'" effect="plain" round>
+              {{ busy ? '推演中' : '空闲' }}
+            </el-tag>
+            <el-tooltip
+                v-if="chartVersionStale"
+                content="这份报告是按旧版排盘口径生成的。历史即历史 —— 命盘不会随引擎升级而改变"
+                placement="bottom"
+            >
+              <el-tag type="warning" effect="plain" round>旧口径</el-tag>
+            </el-tooltip>
+            <el-button
+                plain
+                :icon="Download"
+                :disabled="!canExport"
+                :loading="pdfDownloading"
+                @click="downloadPdf"
+            >
+              下载 PDF
+            </el-button>
+          </div>
+        </section>
+
+        <!-- ==================== 命盘（会话级，只推一次） ==================== -->
+        <el-card v-if="chart" class="chart-card" shadow="never">
+          <template #header>
+            <div class="chart-head">
+              <div class="ganzhi">{{ disp(chart.ganZhi) }}</div>
+              <div class="chart-meta">
+                <el-tag v-if="chart.zodiac" size="small" effect="plain">生肖 · {{ disp(chart.zodiac) }}</el-tag>
+                <el-tag v-if="chart.starSign" size="small" effect="plain">星座 · {{ disp(chart.starSign) }}</el-tag>
+                <el-tag v-if="chart.lunarDate" size="small" effect="plain">农历 · {{ shortDate(chart.lunarDate) }}</el-tag>
+                <el-tag v-if="chart.gregorianDate" size="small" effect="plain">公历 · {{ shortDate(chart.gregorianDate) }}</el-tag>
+                <!-- 刻意不展示 chart.sect：它是个流派编号（如 "2"），不是给人看的文案 -->
+              </div>
             </div>
           </template>
 
-          <el-alert
-              v-if="round.error"
-              class="round-error"
-              type="error"
-              show-icon
-              :closable="false"
-              :title="round.error.code"
-              :description="round.error.message"
-          />
+          <!-- 属性 × 柱位 的矩阵。列是动态的：某一柱缺失时不硬塞空列 -->
+          <el-table :data="chartRows" border size="small" class="pillar-table">
+            <el-table-column prop="label" label="" width="66" align="left">
+              <template #default="{ row }">
+                <span class="attr-label">{{ row.label }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+                v-for="col in chartColumns"
+                :key="col.key"
+                :label="col.label"
+                min-width="112"
+                align="center"
+            >
+              <template #default="{ row }">
+                <span class="cell" :class="row.cls">{{ row.cells[col.index] }}</span>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <template v-if="chart.qiYunView">
+            <el-divider content-position="left">大运流转</el-divider>
+            <el-descriptions :column="4" size="small" border>
+              <el-descriptions-item label="当前大运">
+                第 {{ chart.qiYunView.currentDaYunIndex }} 步
+              </el-descriptions-item>
+              <el-descriptions-item label="起运年份">
+                {{ chart.qiYunView.currentDaYunStartYear }} 年
+              </el-descriptions-item>
+              <el-descriptions-item label="当前年龄">
+                {{ chart.qiYunView.currentAge }} 岁
+              </el-descriptions-item>
+              <el-descriptions-item label="虚岁">
+                {{ chart.qiYunView.currentNominalAge }} 岁
+              </el-descriptions-item>
+            </el-descriptions>
+          </template>
         </el-card>
-      </article>
-    </div>
 
-    <!-- ==================== 输入区（吸底） ==================== -->
-    <div class="composer">
-      <div class="composer-inner">
-        <div v-if="rounds.length" class="chips">
-          <el-button
-              v-for="s in FOLLOW_SAMPLES"
-              :key="s"
-              size="small"
-              round
-              plain
-              :disabled="busy"
-              @click="send(s)"
-          >{{ s }}</el-button>
-        </div>
+        <!-- ==================== 空态 ==================== -->
+        <el-empty v-if="!rounds.length" description="说一句出生时间，开始推演" :image-size="130">
+          <el-button class="sample-btn" plain @click="send(SAMPLE_QUESTION)">{{ SAMPLE_QUESTION }}</el-button>
+          <p class="empty-hint">
+            排盘是纯计算，毫秒级，不走模型；解读才调模型。<br/>
+            命中缓存的那一层会打上「缓存」标记 —— 那一轮不会真的花钱。
+          </p>
+        </el-empty>
 
-        <div class="input-box" :class="{ 'is-disabled': busy }">
-          <el-input
-              v-model="question"
-              type="textarea"
-              :autosize="{ minRows: 2, maxRows: 8 }"
-              resize="none"
-              :disabled="busy"
-              placeholder="说出生辰八字，或直接追问…"
-              @keydown.enter.exact.prevent="send()"
-          />
-          <div class="input-bar">
-            <span class="input-tip">Enter 发送 · Shift + Enter 换行</span>
-            <span class="bar-spacer"></span>
-            <!-- 按钮被 disabled 时自身不派发鼠标事件，tooltip 会失效；
-                 套一层 span 让 tooltip 有可命中的宿主，也顺便定住尺寸 -->
-            <el-tooltip :content="sendTip" placement="top">
-              <span class="send-wrap">
-                <el-button
-                    type="primary"
-                    circle
-                    class="send-btn"
-                    :icon="Promotion"
-                    :loading="busy"
-                    :disabled="!busy && !question.trim()"
-                    @click="send()"
-                />
-              </span>
-            </el-tooltip>
+        <!-- ==================== 对话流 ==================== -->
+        <article v-for="(round, index) in rounds" :key="index" class="round">
+          <div class="ask">
+            <span>{{ round.question }}</span>
           </div>
-        </div>
 
-        <p class="composer-hint">
-          {{ busy
-              ? '生成期间输入框会锁住 —— 同一会话并发会损坏对话记忆，后端也会直接拒绝。'
-              : '追问会自动带上当前会话的命盘与生辰，不必重复生日。' }}
-        </p>
+          <el-card class="answer" shadow="never">
+            <template #header>
+              <div class="answer-head">
+                <el-tag
+                    v-for="stage in stagesOf(round)"
+                    :key="stage.key"
+                    class="stage-tag"
+                    size="small"
+                    round
+                    :type="stageTagType(round, stage.key)"
+                    :effect="stageState(round, stage.key) === 'running' ? 'dark' : 'plain'"
+                >
+                  <i class="dot" :class="'is-' + stageState(round, stage.key)"></i>{{ stage.label }}
+                </el-tag>
+                <el-tag v-if="round.followUp" size="small" round type="info" effect="plain">
+                  复用上轮命盘与生辰
+                </el-tag>
+                <el-tooltip v-for="(hit, i) in round.cacheHits" :key="'c' + i" content="这一层没调模型，直接回放了上次的结果">
+                  <el-tag size="small" round class="cache-tag">{{ hit }}</el-tag>
+                </el-tooltip>
+
+                <span class="head-spacer"></span>
+                <span v-if="round.elapsed" class="elapsed">{{ fmtElapsed(round.elapsed) }}</span>
+                <el-tooltip v-if="!round.streaming && round.report" content="复制报告全文" placement="top">
+                  <el-button link :icon="CopyDocument" @click="copyReport(round)"/>
+                </el-tooltip>
+              </div>
+            </template>
+
+            <!-- 四柱逐根点亮。后端是并发推的，顺序靠前端排 -->
+            <div v-if="orderedPillars(round).length" class="pillars">
+              <div
+                  v-for="p in orderedPillars(round)"
+                  :key="p.pillar"
+                  class="pillar"
+                  :class="{ 'is-failed': !p.ok }"
+              >
+                <div class="pillar-head">
+                  <span class="pillar-label">{{ p.label }}</span>
+                  <el-tag v-if="!p.ok" type="danger" size="small" effect="plain" round>降级</el-tag>
+                </div>
+                <!-- 每柱结论是 markdown（后端提示词里有表格/标题），与报告共用同一渲染器；
+                     渲染器先转义 HTML 再做行内替换，v-html 不会执行模型输出 -->
+                <div class="pillar-text markdown" v-html="renderPillarText(p)"></div>
+              </div>
+            </div>
+
+            <!-- 正文：流式期间走纯文本（每片 delta 重解析一遍 markdown 会把页面拖卡），收尾后再渲染 -->
+            <el-skeleton v-if="round.streaming && !round.report" :rows="4" animated class="report-skeleton"/>
+            <div v-else-if="round.streaming" class="report plain">
+              {{ round.report }}<span class="caret"></span>
+            </div>
+            <template v-else-if="round.report">
+              <!-- 首屏：只有「核心结论」这几条（后端提示词保证 5~8 条、每条带依据+应期） -->
+              <div class="report markdown" v-html="renderHead(round)"></div>
+
+              <!-- 详章：按 metaphysics 仓库 docs/ai-fortune-prompt-tuning.md §三③ 的约定折叠。
+                   模型没按约定输出时 hasDetail() 为 false，下面的块整体不出现 —— 退化成「全展示」 -->
+              <div v-if="hasDetail(round)" class="detail">
+                <button class="detail-toggle" type="button" @click="round.detailOpen = !round.detailOpen">
+                  <el-icon class="detail-chev" :class="{ 'is-open': round.detailOpen }">
+                    <ArrowRight/>
+                  </el-icon>
+                  <span>{{ round.detailOpen ? '收起详细分析' : '展开详细分析' }}</span>
+                  <span class="detail-count">{{ detailCount(round) }} 节</span>
+                </button>
+                <div
+                    v-show="round.detailOpen"
+                    class="report markdown detail-body"
+                    v-html="renderDetail(round)"
+                ></div>
+              </div>
+            </template>
+
+            <el-alert
+                v-if="round.error"
+                class="round-error"
+                type="error"
+                show-icon
+                :closable="false"
+                :title="round.error.code"
+                :description="round.error.message"
+            />
+          </el-card>
+        </article>
+      </div>
+
+      <!-- ==================== 输入区（吸底） ==================== -->
+      <div class="composer">
+        <div class="composer-inner">
+          <div v-if="rounds.length" class="chips">
+            <el-button
+                v-for="s in FOLLOW_SAMPLES"
+                :key="s"
+                size="small"
+                round
+                plain
+                :disabled="busy"
+                @click="send(s)"
+            >{{ s }}</el-button>
+          </div>
+
+          <div class="input-box" :class="{ 'is-disabled': busy }">
+            <el-input
+                v-model="question"
+                type="textarea"
+                :autosize="{ minRows: 2, maxRows: 8 }"
+                resize="none"
+                :disabled="busy"
+                placeholder="说出生辰八字，或直接追问…"
+                @keydown.enter.exact.prevent="send()"
+            />
+            <div class="input-bar">
+              <span class="input-tip">Enter 发送 · Shift + Enter 换行</span>
+              <span class="bar-spacer"></span>
+              <!-- 按钮被 disabled 时自身不派发鼠标事件，tooltip 会失效；
+                   套一层 span 让 tooltip 有可命中的宿主，也顺便定住尺寸 -->
+              <el-tooltip :content="sendTip" placement="top">
+                <span class="send-wrap">
+                  <el-button
+                      type="primary"
+                      circle
+                      class="send-btn"
+                      :icon="Promotion"
+                      :loading="busy"
+                      :disabled="!busy && !question.trim()"
+                      @click="send()"
+                  />
+                </span>
+              </el-tooltip>
+            </div>
+          </div>
+
+          <p class="composer-hint">
+            {{ busy
+                ? '生成期间输入框会锁住 —— 同一会话并发会损坏对话记忆，后端也会直接拒绝。'
+                : '追问会自动带上当前会话的命盘与生辰，不必重复生日。' }}
+          </p>
+        </div>
+      </div>
       </div>
     </div>
+
+
+    <!--
+      报告 PDF 由后端渲染（/chat/session/{id}/report.pdf，openhtmltopdf + 内嵌中文字体子集），
+      前端只负责触发下载 —— 所以这里没有预览弹窗。
+      2026-10-10 之前的 html2canvas + jsPDF 光栅化方案已整体移除：
+      它要把报告在页面里按 A4 再排一遍版，和后端是两条要各自维护的管线，
+      而「预览的样子 ≠ 下载到的 PDF」本身就是缺陷。
+    -->
+
   </div>
 </template>
 
@@ -248,15 +358,33 @@
  * 命盘是<b>会话级</b>的，不是每轮一份 —— 后端只在首轮推 chart，追问轮不重推。
  * 因此命盘卡片挂在 {@code rounds} 循环外面。
  */
-import {computed, nextTick, onMounted, onUnmounted, reactive, ref} from 'vue';
+import {computed, nextTick, onMounted, onUnmounted, reactive, ref, watch} from 'vue';
 import {useRoute} from 'vue-router';
-import {ElMessage} from 'element-plus';
-import {CopyDocument, Promotion, RefreshRight, ArrowRight} from '@element-plus/icons-vue';
+import {ElMessage, ElMessageBox} from 'element-plus';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CopyDocument,
+  Delete,
+  Download,
+  Plus,
+  Promotion,
+} from '@element-plus/icons-vue';
 import Header from '@/components/Header.vue';
-import {streamAsk} from '@/api/module/fortune';
+import {
+  deleteSession,
+  downloadReportPdf,
+  getSessionDetail,
+  listSessions,
+  ROUND_STATUS,
+  streamAsk,
+} from '@/api/module/fortune';
 import type {
   ErrorPayload,
   FortuneChart,
+  FortuneRoundVo,
+  FortuneSessionDetailVo,
+  FortuneSessionVo,
   PillarCode,
   PillarPayload,
 } from '@/api/module/fortune';
@@ -285,6 +413,36 @@ const CACHE_LABEL: Record<string, string> = {
   followup: '追问缓存',
 };
 
+/**
+ * 失败轮的错误码 → 人话。
+ *
+ * <p>为什么要在前端留一份：库里只落了 {@code errorCode}（如 {@code OVERLOADED}），
+ * 当时那句面向用户的 {@code message} 是 SSE 事件里的、没有留存。
+ * 所以从历史会话恢复失败轮时，只能在这里把码翻回中文，否则只剩一个英文码。
+ */
+const ERROR_HINT: Record<string, string> = {
+  EXTRACT_FAILED: '没能从那段描述里认出出生时间 —— 补上「公历还是农历 + 年月日 + 时辰 + 性别」再试',
+  INTERNAL_ERROR: '服务端处理中断了，稍后重试就行',
+  OVERLOADED: '当前排队的人有点多，稍后再试',
+  BUSY: '同一会话上一轮还在生成中，等它结束再问',
+};
+
+/**
+ * 后端「这一柱没成功」的降级文案特征串。
+ *
+ * <p>{@code fortune_round.pillar_json} 里只有 {@code {柱位: 文本}}，没有独立的成功标记 ——
+ * 降级柱存进去的就是后端 {@code FortunePipeline.PILLAR_FAILED_TEXT} 那句话。
+ * 只能靠特征串反推，这也决定了判据要<b>宽</b>：认不出来就按正常柱渲染。
+ * 反过来做的话，后端把那句话改一个字，满屏「降级」标记就成了新的 bug。
+ */
+const PILLAR_FAILED_HINT = '该柱分析超时或失败';
+
+/** 侧栏收起偏好存在这里。前缀跟项目的 {@code yuanqi-theme} 保持一致 */
+const RAIL_KEY = 'yuanqi-fortune-rail';
+
+/** 窄于此宽度就把侧栏收成图标栏 —— 150px 的常驻栏在手机上会把报告区挤没 */
+const NARROW_QUERY = '(max-width: 899px)';
+
 /** 一轮问答的界面状态 */
 interface Round {
   question: string;
@@ -312,7 +470,54 @@ const busy = ref(false);
 const chart = ref<FortuneChart | null>(null);
 const rounds = ref<Round[]>([]);
 
+/** 当前会话的标题。命盘还没出来时，hero 区靠它说明「我现在在哪个会话」 */
+const currentTitle = ref('');
+/** 详情接口说这份命盘是按旧口径排的 —— 提示一句就够，不是错误 */
+const chartVersionStale = ref(false);
+
 let controller: AbortController | null = null;
+
+// ==================== 左栏：历史会话 ====================
+
+const sessions = ref<FortuneSessionVo[]>([]);
+/** 只用于首次加载的占位。后续静默刷新不动它，否则列表会一闪一闪 */
+const histLoading = ref(false);
+/** 正在打开的那条 —— 转圈用，同时防重复点击 */
+const openingId = ref('');
+
+/** 用户手动收起。与「窄屏强制收起」分开记，视口变宽时才恢复得回来 */
+const railManual = ref(readRailPref());
+/** 窄屏强制收成图标栏。setup 阶段就定好，避免移动端先闪一下展开态 */
+const railForced = ref(typeof window !== 'undefined' && window.matchMedia(NARROW_QUERY).matches);
+/** 窄屏下把左栏当覆盖层展开，而不是继续挤压报告区 */
+const overlayOpen = ref(false);
+
+const rail = computed(() => railManual.value || railForced.value);
+/** 图标栏下只留状态点 + 「新对话」图标，文字全隐 */
+const showText = computed(() => !rail.value || overlayOpen.value);
+
+/** 收起偏好落 localStorage：每次进页面都被重置回展开态会让人烦 */
+function readRailPref(): boolean {
+  try {
+    return localStorage.getItem(RAIL_KEY) === '1';
+  } catch {
+    // 隐私模式下 localStorage 可能直接抛，读不到就按展开算
+    return false;
+  }
+}
+
+watch(railManual, (next) => {
+  try {
+    localStorage.setItem(RAIL_KEY, next ? '1' : '0');
+  } catch {
+    // 写不进去不影响使用，只是下次进来恢复不了
+  }
+});
+
+// ==================== 报告 PDF 下载 ====================
+
+/** 下载按钮的 loading。PDF 由后端渲染，前端只是等一个二进制响应 */
+const pdfDownloading = ref(false);
 
 // ==================== 衍生数据 ====================
 
@@ -358,6 +563,38 @@ const chartRows = computed(() => {
     {key: 'emptyDie', label: '空亡', cls: 'dim', cells: cells((p) => disp(p.emptyDie))},
   ];
 });
+
+// ==================== 左栏与导出的衍生数据 ====================
+
+/**
+ * 可以进预览 / PDF 的轮次。
+ *
+ * <p>滤掉流式中的那一轮（半成品），也滤掉既没正文又没四柱的空轮次。
+ * 失败轮如果留下了部分正文，仍然要导 —— 用户看到过的东西就该能带走。
+ */
+const printableRounds = computed(() =>
+  rounds.value.filter((r) => !r.streaming && (!!r.report || orderedPillars(r).length > 0)),
+);
+
+const canExport = computed(() => printableRounds.value.length > 0);
+
+/** 状态点档位：0 生成中 / 1 已完成 / 2 失败。未知值按「已完成」画，免得列表一片红 */
+function statusKey(status: number | null | undefined): string {
+  if (status === ROUND_STATUS.DOING) return 'doing';
+  if (status === ROUND_STATUS.FAIL) return 'fail';
+  return 'done';
+}
+
+/** 侧栏里的时间：今天给时分，更早给月-日。150px 的栏宽里塞不下完整时间戳 */
+function shortWhen(value: string | null): string {
+  const m = value ? /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(value) : null;
+  if (!m) return '';
+  const now = new Date();
+  const today = Number(m[1]) === now.getFullYear()
+      && Number(m[2]) === now.getMonth() + 1
+      && Number(m[3]) === now.getDate();
+  return today ? `${m[4]}:${m[5]}` : `${m[2]}-${m[3]}`;
+}
 
 // ==================== 发送 ====================
 
@@ -440,6 +677,9 @@ function send(preset?: string): void {
     round.elapsed = Math.round(performance.now() - round.startedAt);
     busy.value = false;
     scrollToBottom();
+    // 一轮收尾 = 库里多了一行（会话行 + 轮次行）。静默刷一次左栏：
+    // 「新会话」立刻出现在列表里；失败的轮也在，用户看得见、删得掉。
+    void refreshSessions(true);
   }
 
 function handleEvent(ev: { event: string; data: any }, round: Round): void {
@@ -495,6 +735,12 @@ function upsertPillar(round: Round, payload?: PillarPayload): void {
   round.pillars[index] = payload;
 }
 
+/**
+ * 清空当前会话，回到「新对话」状态。
+ *
+ * <p>注意这不是「删除」—— 已经落库的那些还在左栏里。这也正是它跟改版前那个
+ * 纯前端 reset 的区别：以前一清就真没了，现在清掉的是看板，资产还在。
+ */
 function reset(): void {
   controller?.abort();
   sessionId.value = '';
@@ -502,6 +748,223 @@ function reset(): void {
   chart.value = null;
   question.value = '';
   busy.value = false;
+  currentTitle.value = '';
+  chartVersionStale.value = false;
+}
+
+/** 开一条新对话。左栏的「新对话」、以及删掉当前会话时都会走到这里 */
+function newSession(): void {
+  reset();
+  overlayOpen.value = false;
+  // 刚结束的那一轮已经落库了，立刻反映到左栏 —— 否则新会话开出来了，列表里却还看不见它
+  void refreshSessions(true);
+}
+
+/** 收起 / 展开左栏。窄屏下展开的是覆盖层 —— 不能再挤压本来就不够的报告区 */
+function toggleRail(): void {
+  if (railForced.value) {
+    overlayOpen.value = !overlayOpen.value;
+    return;
+  }
+  railManual.value = !railManual.value;
+}
+
+// ==================== 历史会话：拉列表 / 打开 / 删除 ====================
+
+/**
+ * 刷新左栏列表。
+ *
+ * <p>失败只打日志、不弹提示 —— {@code src/api} 的响应拦截器已经弹过一次了，
+ * 这里再弹就是两条一模一样的红条。何况「列表没刷新出来」不该打断用户正在读的报告。
+ *
+ * @param silent 静默刷新：不动 loading 占位。列表已经在屏上了，再闪一下很难看
+ */
+async function refreshSessions(silent = false): Promise<void> {
+  if (!silent) histLoading.value = true;
+  try {
+    const res = await listSessions(1, 20);
+    sessions.value = res.data?.records ?? [];
+  } catch (e) {
+    console.warn('[fortune] 拉取历史会话失败', e);
+  } finally {
+    if (!silent) histLoading.value = false;
+  }
+}
+
+/**
+ * 打开一条历史会话：拉详情 → 整页复原。
+ *
+ * <p>为什么必须真调接口，而不是拿列表里那点数据在前端拼：轮次、四柱结论、命盘
+ * 都只在详情里。而且后端读详情时会把该会话的生辰快照<b>回填进 Redis</b>
+ * （那条 TTL 只有 24h）—— 不回填的话，点开两个月前的会话接着追问，
+ * 后端会因为「抽不到生辰 + 缓存里也没有」而回一句「没能从你的话里看出出生日期」。
+ * <b>所以「打开历史会话」不能只是前端切状态。</b>
+ */
+async function openHistory(item: FortuneSessionVo): Promise<void> {
+  if (busy.value) {
+    ElMessage.warning('正在推演中，等这一轮结束再切换会话');
+    return;
+  }
+  // 已经在看这一条了，别白跑一趟接口
+  if (item.sessionId === sessionId.value && rounds.value.length) {
+    overlayOpen.value = false;
+    return;
+  }
+  openingId.value = item.sessionId;
+  try {
+    const res = await getSessionDetail(item.sessionId);
+    const detail = res.data as FortuneSessionDetailVo | undefined;
+    if (!detail) {
+      ElMessage.warning('这条会话打不开了');
+      return;
+    }
+    applyDetail(detail);
+    overlayOpen.value = false;
+  } catch (e) {
+    console.warn('[fortune] 打开历史会话失败', e);
+  } finally {
+    openingId.value = '';
+  }
+}
+
+/** 把详情铺到页面上：会话级字段 + 每一轮 */
+function applyDetail(detail: FortuneSessionDetailVo): void {
+  controller?.abort();
+  sessionId.value = detail.session.sessionId;
+  currentTitle.value = detail.session.title ?? '';
+  chartVersionStale.value = !!detail.chartVersionStale;
+  // 命盘直接用服务端给的：它优先回放当时存下的整盘快照。
+  // 前端拿 birthJson 再调一次 /graph/chart 就绕过了这个口径 —— 引擎升级过的旧会话会当场换一张盘。
+  chart.value = detail.chart ?? null;
+  question.value = '';
+  rounds.value = (detail.rounds ?? []).map(fromRoundVo);
+  busy.value = false;
+  scrollToTop();
+}
+
+/**
+ * 一条落库的轮次 → 页面状态。
+ *
+ * <p>还原的是已经定稿的轮次，所以 stage 直接标完成态，不走「等待中」的骨架。
+ * 四柱结论文本是 LLM 的产物、逐字存在 {@code pillarJson} 里 —— 只解析，不重算。
+ */
+function fromRoundVo(row: FortuneRoundVo): Round {
+  const failed = row.status === ROUND_STATUS.FAIL;
+  const round = reactive<Round>({
+    question: row.question ?? '',
+    stage: {},
+    pillars: [],
+    report: row.answer ?? '',
+    error: row.errorCode
+        ? {code: row.errorCode, message: ERROR_HINT[row.errorCode] ?? '这一轮没能生成出来'}
+        : null,
+    cacheHits: splitCacheHits(row.cacheHits),
+    streaming: false,
+    elapsed: row.elapsedMs ?? 0,
+    startedAt: 0,
+    followUp: row.followUp === 1,
+    detailOpen: false,
+  });
+
+  if (round.followUp) {
+    // 追问轮不跑抽取与排盘（复用会话的），只点亮「解读」
+    round.stage.summary = failed ? 'failed' : 'done';
+  } else {
+    round.stage.extract = 'done';
+    round.stage.calc = 'done';
+    round.stage.summary = failed ? 'failed' : 'done';
+  }
+
+  const texts = parsePillarTexts(row.pillarJson);
+  PILLAR_ORDER.forEach((code, index) => {
+    const text = texts[code];
+    if (!text) return;
+    round.pillars[index] = {
+      pillar: code,
+      label: PILLAR_LABELS[code],
+      text,
+      ok: !text.includes(PILLAR_FAILED_HINT),
+    };
+  });
+  return round;
+}
+
+/** 解析四柱结论 JSON。坏了就当没有 —— 四柱卡片不出现，报告正文照旧渲染 */
+function parsePillarTexts(raw: string | null): Record<string, string> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {};
+  } catch (e) {
+    console.warn('[fortune] 四柱结论 JSON 解析失败，本轮不显示四柱卡片', e);
+    return {};
+  }
+}
+
+/** 库里的缓存留痕是逗号分隔的层名（extract/first/followup），翻回给人看的标签 */
+function splitCacheHits(raw: string | null): string[] {
+  if (!raw) return [];
+  return raw
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .map((x) => CACHE_LABEL[x] ?? x);
+}
+
+/** 删除（后端是逻辑删除）。删掉的正好是当前会话时，页面一起回到新对话状态 */
+async function removeSession(item: FortuneSessionVo): Promise<void> {
+  const label = item.ganZhi || item.title || '未命名会话';
+  try {
+    await ElMessageBox.confirm(
+        `删除后这条会话不再出现在列表里。「${label}」`,
+        '删除会话',
+        {type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消'},
+    );
+  } catch {
+    // 用户点了取消。ElMessageBox 用 reject 表达「取消」，不是异常，直接返回
+    return;
+  }
+  try {
+    const res = await deleteSession(item.sessionId);
+    if (res.data !== true) {
+      ElMessage.warning('这条会话已经不在了');
+    }
+    if (item.sessionId === sessionId.value) {
+      // 删的是正在看的这条：页面留在原地已经没有意义了
+      newSession();
+    } else {
+      await refreshSessions(true);
+    }
+  } catch (e) {
+    console.warn('[fortune] 删除会话失败', e);
+  }
+}
+
+// ==================== 下载报告 PDF ====================
+
+/**
+ * 下载报告 PDF。
+ *
+ * <p>排版与渲染都在后端（openhtmltopdf + 内嵌中文字体子集），前端只管把二进制
+ * 存成文件 —— 所以这里没有「准备画布 / 等字体 / 等两帧」那一套了。
+ * 文件名以后端给的为准（含标题与八字，堆在下载目录里认得出是哪一次）。
+ */
+async function downloadPdf(): Promise<void> {
+  if (!sessionId.value || pdfDownloading.value) return;
+  pdfDownloading.value = true;
+  try {
+    const filename = await downloadReportPdf(sessionId.value);
+    ElMessage.success(`已下载：${filename}`);
+  } catch (e) {
+    if (e instanceof NeedLoginError) {
+      goLogin();
+      return;
+    }
+    console.error('[fortune] 下载报告 PDF 失败', e);
+    ElMessage.error('下载 PDF 失败：' + (e instanceof Error ? e.message : String(e)));
+  } finally {
+    pdfDownloading.value = false;
+  }
 }
 
 // ==================== 展示工具 ====================
@@ -742,6 +1205,46 @@ function scrollToBottom(): void {
   });
 }
 
+/** 换会话时回到顶部。滚动容器同样是 #app，不是 window */
+function scrollToTop(): void {
+  nextTick(() => {
+    const scroller = document.getElementById('app');
+    if (scroller) scroller.scrollTop = 0;
+  });
+}
+
+// ==================== 视口档位 / 生成中轮询 ====================
+
+let mq: MediaQueryList | null = null;
+let pollTimer: number | null = null;
+
+/** 视口在宽窄之间切换时，只改「强制收起」这一档；用户手动收起的选择一直保留 */
+function onViewportChange(): void {
+  railForced.value = !!mq?.matches;
+  if (!railForced.value) {
+    // 变宽了，覆盖层就没有存在意义了 —— 留着它会让主区莫名其妙地全宽
+    overlayOpen.value = false;
+  }
+}
+
+/**
+ * 「生成中」的会话轮询。
+ *
+ * <p>这是「异步」在界面上的落点。用户提交完关掉页面，后端线程会把报告跑完并落库；
+ * 过一会儿回来，左栏那条会话会自己从「生成中」变成「已完成」。
+ * 没有这个轮询，用户就只能手动刷新才看得见状态变了。
+ *
+ * <p>两个前置条件都要满足才发请求：左侧列表里确实有「生成中」的，
+ * 且当前没在推演（自己正在跑的时候 SSE 会驱动刷新，再轮询就是纯重复请求）。
+ */
+function startPolling(): void {
+  pollTimer = window.setInterval(() => {
+    if (busy.value) return;
+    if (!sessions.value.some((s) => s.status === ROUND_STATUS.DOING)) return;
+    void refreshSessions(true);
+  }, 20000);
+}
+
 onMounted(() => {
   document.title = 'AI 命理推演';
   // 从排盘页「AI 推演」按钮带过来的生辰：预填成一句完整的话。
@@ -749,6 +1252,13 @@ onMounted(() => {
   // 用户应该自己决定什么时候开始。
   const seed = buildSeedFromQuery();
   if (seed) question.value = seed;
+
+  mq = window.matchMedia(NARROW_QUERY);
+  onViewportChange();
+  mq.addEventListener('change', onViewportChange);
+
+  void refreshSessions();
+  startPolling();
 });
 
 /**
@@ -770,6 +1280,11 @@ function buildSeedFromQuery(): string {
 
 onUnmounted(() => {
   controller?.abort();
+  mq?.removeEventListener('change', onViewportChange);
+  if (pollTimer !== null) {
+    window.clearInterval(pollTimer);
+    pollTimer = null;
+  }
 });
 </script>
 
@@ -790,6 +1305,261 @@ onUnmounted(() => {
   @include main-container($mainPad);
   padding-top: 28px;
   padding-bottom: 8px;
+}
+
+/* ==================== 方案 A：左侧常驻历史栏 ==================== */
+
+/**
+ * 侧栏两档宽度。主区靠 flex 自适应，不需要别处再手动让位 ——
+ * 改这两个值就够，不用同步改 padding。
+ */
+$histW: 150px;
+$histRailW: 40px;
+
+.layout {
+  display: flex;
+  // 必须是 flex-start。默认的 stretch 会把侧栏拉到和主区一样高，
+  // 那样 sticky 就没有可粘区间了，侧栏会跟着页面一起滚走。
+  align-items: flex-start;
+}
+
+.main {
+  flex: 1;
+  // 少了它，长内容的 min-content 宽度会把 flex 项撑破，报告区就出横向滚动条了
+  min-width: 0;
+}
+
+.hist {
+  flex: none;
+  /**
+   * 吸顶。header（90px）在正常流里、会随页面滚走，侧栏贴住视口顶之后才谈得上「常驻」。
+   *
+   * <p>用 sticky 而不是 fixed：fixed 与正常流里的 header 会重叠，
+   * 窄屏下正好压住左下角的 logo。sticky 天然从 header 下方开始。
+   */
+  position: sticky;
+  top: 0;
+  z-index: 15;
+
+  box-sizing: border-box;
+  width: $histW;
+  // 减掉 header 高度，页首那一刻正好铺满一屏，不会有一截伸到视口外
+  height: calc(100vh - #{$headerH});
+  display: flex;
+  flex-direction: column;
+  padding: 8px 8px 12px;
+  border-right: 1px solid var(--line);
+  background: var(--bg);
+  transition: width 0.18s ease;
+
+  .layout.is-rail & {
+    width: $histRailW;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+}
+
+/* 窄屏展开态：把左栏摊成覆盖层，而不是继续挤压报告区 */
+.hist-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(38, 33, 25, 0.42);
+}
+
+.layout.is-overlay .hist {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 240px;
+  height: 100vh;
+  padding: 10px 10px 16px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  z-index: 45;
+}
+
+.hist-head {
+  flex: none;
+}
+
+.hist-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 6px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--gold);
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+
+  &:hover:not(:disabled) {
+    border-color: var(--gold-soft);
+    background: var(--gold-wash);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.hist-body {
+  flex: 1;
+  // 必须有 min-height: 0，否则 flex 子项不肯收缩，列表会把整个侧栏顶高
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  scrollbar-width: thin;
+}
+
+.hist-tip {
+  margin: 8px 2px;
+  font-size: 12px;
+  line-height: 1.75;
+  color: var(--text-faint);
+}
+
+.hist-item {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+
+  &:hover {
+    background: var(--panel-2);
+  }
+
+  // 当前会话：主色描边 + 淡底。这是「我现在在哪个会话」的全部视觉依据
+  &.is-active {
+    background: var(--gold-wash);
+    border-color: var(--gold-soft);
+  }
+}
+
+.hist-hit {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 6px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: progress;
+  }
+}
+
+.h-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+
+  &.is-doing {
+    background: var(--el-color-warning);
+    // 复用下面「阶段点」的同一个动画，两处含义一致：进行中
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+
+  &.is-fail {
+    background: var(--red);
+  }
+}
+
+.h-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.h-gz {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.h-sub {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/**
+ * 删除按钮。常显（低透明度）而不是 hover 才出现 ——
+ * 手机上根本没有 hover，藏起来就等于没有这个功能。
+ */
+.h-del {
+  flex: none;
+  width: 22px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    opacity: 1;
+    color: var(--red);
+  }
+}
+
+.hist-foot {
+  flex: none;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.rail-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    background: var(--panel-2);
+    color: var(--text-dim);
+  }
 }
 
 /* ==================== 页头 ==================== */
@@ -833,6 +1603,12 @@ onUnmounted(() => {
       font-size: 13px;
       color: var(--text-faint);
     }
+
+    /* 当前会话名。压在副标题下面一行，颜色提亮一档，和上面那句说明区分开 */
+    .hero-current {
+      color: var(--gold);
+      word-break: break-all;
+    }
   }
 
   .hero-actions {
@@ -840,6 +1616,8 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 }
 
