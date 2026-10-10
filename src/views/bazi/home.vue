@@ -554,14 +554,15 @@
             <span class="strength-tag" :class="lifeTime?.strong ? 'is-strong' : 'is-weak'">
               身{{ lifeTime?.strong ? '强' : '弱' }}
             </span>
-            <div class="score-scale" title="量程 −100 ~ +100；阈值 50（>50 判身强）">
+            <div class="score-scale"
+                 :title="`量程 −100 ~ +100；本盘阈值 ${lifeTime?.strongBaseline ?? 0}（高于它判身强）`">
               <div class="scale-track">
                 <div class="scale-fill" :style="{ width: scorePct + '%' }"></div>
                 <div class="scale-mark" :style="{ left: STRONG_THRESHOLD_PCT + '%' }"></div>
               </div>
               <div class="scale-foot">
                 <span>−100</span>
-                <span class="scale-mid">阈值 50</span>
+                <span class="scale-mid">阈值 {{ lifeTime?.strongBaseline ?? 0 }}</span>
                 <span>+100</span>
               </div>
             </div>
@@ -1073,18 +1074,29 @@ const tongGenCountText = computed(() => (structureView.value
     ? `${tongGenRows.value.length - rootlessStems.value.length}/${tongGenRows.value.length}`
     : '—'));
 
-/* ---------------- 身强弱量尺 ---------------- */
-
-/**
- * score 的量程是 −100 ~ +100（后端按柱位加权累加，月支占 ±40 为大头），
- * 判强弱的阈值是 **> 50**。所以量尺上 50 那条线在 75% 处，不是中点 ——
- * 画成「过半即身强」是错的。
+/*
+ * ---------------- 身强弱量尺 ----------------
+ *
+ * score 的量程是 −100 ~ +100（后端按「得令/得地/得势得生」三层加权，再看藏干分层、
+ * 虚实、合化、刑冲修正；月支得令 ±40 是大头）。
+ * 判强弱的阈值**不是固定值**：后端 2026-10-10 起改用「相对同类型盘的基准分」
+ * （取该日主 score 分布的中位数：木/火 −33、水 −30、金 −14、土 −19），
+ * 基准随日主五行变，所以**不能在前端写死百分比** ——
+ * 这里直接用后端下发的 `lifeTime.strongBaseline` 换算阈值线的位置。
+ *
+ * ⚠️ 别退回「阈值 50 / 75%」：那个口径 5000 张随机盘实测 89.5% 判身弱，
+ * 已废弃（详见 metaphysics 仓库 commons/common-ganzhi/docs/strong-weak-calibration-2026-10-10.md）。
  */
 const scorePct = computed(() => {
   const s = Number(lifeTime.value?.score ?? 0);
   return Math.max(0, Math.min(100, (s + 100) / 2));
 });
-const STRONG_THRESHOLD_PCT = 75;
+
+/** 阈值线在量尺上的位置（%）：把 −100~+100 线性映射到 0~100。 */
+const STRONG_THRESHOLD_PCT = computed(() => {
+  const base = Number(lifeTime.value?.strongBaseline ?? 0);
+  return Math.max(0, Math.min(100, (base + 100) / 2));
+});
 
 /** 两流派差异摘要 */
 const sectDiff = computed(() => {

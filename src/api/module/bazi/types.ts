@@ -186,9 +186,15 @@ export interface QiYunView {
 /**
  * 身强身弱（后端 `LifeTime`）。
  *
- * <p><b>`score` 不是百分制</b>：它是后端按柱位加权累加的原始值，
- * 量程 −100 ~ +100（年干±8、年支±4、月干±12、<b>月支±40</b>、日支±12、时干±12、时支±12），
- * 判强弱的阈值是 **> 50**。所以界面上不能写成「评分 76 分」那种直觉化的百分比。
+ * <p><b>`score` 不是百分制</b>：它是后端按「得令/得地/得势得生」三层加权、
+ * 再看藏干分层、虚实、合化、刑冲修正后的原始值，量程 −100 ~ +100
+ * （月支得令 ±40 是大头，其余三支各 ±10，三个天干各 ±10，合化/刑冲各另有修正）。
+ * 所以界面上不能写成「评分 76 分」那种直觉化的百分比。
+ *
+ * <p><b>判强弱的阈值不是固定值</b>（2026-10-10 改口径）：后端用 `strongBaseline`
+ * ——「同类型盘（同一天干五行）的基准分」，取该日主 score 分布的<b>中位数</b>：
+ * 木/火 −33、水 −30、金 −14、土 −19（10 万张随机盘实测）。
+ * 画量尺、写文案都要用后端下发的这个值，**别在前端写死 50 或百分比**。
  *
  * <p><b>`joyousElements` / `fearElements` 是完整 `Element` 对象</b>
  * （含 `name` / `color`），不是字符串 —— 这里曾误标成 `string[]`。
@@ -196,7 +202,9 @@ export interface QiYunView {
  */
 export interface LifeTime {
     score: number;
-    /** 后端派生值（`score > 50`）。判断强弱用它，别在前端重复那个阈值 */
+    /** 身强判定基准（`score > strongBaseline` 即身强）；随日干五行变，见上 */
+    strongBaseline: number;
+    /** 后端派生值（`score > strongBaseline`）。判断强弱用它，别在前端重复那个比较 */
     strong: boolean;
     joyousElements: Element[];
     joyousGods: string[];

@@ -144,7 +144,27 @@
           <div v-else-if="round.streaming" class="report plain">
             {{ round.report }}<span class="caret"></span>
           </div>
-          <div v-else-if="round.report" class="report markdown" v-html="renderReport(round)"></div>
+          <template v-else-if="round.report">
+            <!-- 首屏：只有「核心结论」这几条（后端提示词保证 5~8 条、每条带依据+应期） -->
+            <div class="report markdown" v-html="renderHead(round)"></div>
+
+            <!-- 详章：按 metaphysics 仓库 docs/ai-fortune-prompt-tuning.md §三③ 的约定折叠。
+                 模型没按约定输出时 hasDetail() 为 false，下面的块整体不出现 —— 退化成「全展示」 -->
+            <div v-if="hasDetail(round)" class="detail">
+              <button class="detail-toggle" type="button" @click="round.detailOpen = !round.detailOpen">
+                <el-icon class="detail-chev" :class="{ 'is-open': round.detailOpen }">
+                  <ArrowRight/>
+                </el-icon>
+                <span>{{ round.detailOpen ? '收起详细分析' : '展开详细分析' }}</span>
+                <span class="detail-count">{{ detailCount(round) }} 节</span>
+              </button>
+              <div
+                  v-show="round.detailOpen"
+                  class="report markdown detail-body"
+                  v-html="renderDetail(round)"
+              ></div>
+            </div>
+          </template>
 
           <el-alert
               v-if="round.error"
@@ -231,7 +251,7 @@
 import {computed, nextTick, onMounted, onUnmounted, reactive, ref} from 'vue';
 import {useRoute} from 'vue-router';
 import {ElMessage} from 'element-plus';
-import {CopyDocument, Promotion, RefreshRight} from '@element-plus/icons-vue';
+import {CopyDocument, Promotion, RefreshRight, ArrowRight} from '@element-plus/icons-vue';
 import Header from '@/components/Header.vue';
 import {streamAsk} from '@/api/module/fortune';
 import type {
@@ -280,6 +300,8 @@ interface Round {
   startedAt: number;
   /** 追问轮：不重新抽取生辰、不重新排盘 */
   followUp: boolean;
+  /** 详章是否展开。跟每一轮走，不跨轮记忆 */
+  detailOpen: boolean;
 }
 
 const route = useRoute();
@@ -365,6 +387,9 @@ function send(preset?: string): void {
     elapsed: 0,
     startedAt: performance.now(),
     followUp: isFollowUp,
+    // 默认收起：首屏留给「核心结论」，详章是备查用的。
+    // 想让详章默认展开，把这里改成 true 即可 —— 折叠与否只是展示，不影响报告内容。
+    detailOpen: false,
   });
   rounds.value.push(round);
   scrollToBottom();
@@ -531,8 +556,155 @@ function stageTagType(round: Round, key: string): 'success' | 'warning' | 'dange
   return 'info';
 }
 
-function renderReport(round: Round): string {
-  return renderMarkdown(round.report);
+// ==================== 「核心结论 + 详细分析」两段切分 ====================
+
+/**
+ * 详章分隔标题。
+ *
+ * <p>约定的原文是<b>逐字</b> {@code ## 详细分析}（见后端 {@code FortuneSummarizer} 的
+ * 类注释与 {@code docs/ai-fortune-prompt-tuning.md}）。这里刻意放宽到「1~6 级标题都认、
+ * 前后空格都容忍」，只认那四个字 —— 因为这个正则的失效方式是<b>静默</b>的：
+ * 一旦没匹配上，页面就退化成「整篇平铺」，没有任何报错，很容易被当成「折叠功能没做」。
+ * 宁可放宽匹配，也不要匹配不上。
+ *
+ * <p>不用 {@code g} 标志：这里每次都只找<b>第一个</b>（模型万一又写了一个，后面的算详章内容）。
+ */
+const DETAIL_HEADING = /^[ \t]*#{1,6}[ \t]*详细分析[ \t]*$/m;
+
+/** 切开的位置。没匹配到返回 -1 */
+function detailAt(report: string): { start: number; end: number } | null {
+  const hit = DETAIL_HEADING.exec(report);
+  return hit ? {start: hit.index, end: hit.index + hit[0].length} : null;
+}
+
+/**
+ * 首屏那段（核心结论）。
+ *
+ * <p>2026-10-10 起做<b>卡片化</b>：四块行（{@code **事业：平** ｜ 依据… ｜ 应期…}）
+ * 不再走通用 markdown 渲染（那会变成一整面文字墙），而是重排成卡片网格。
+ * 解析是<b>宽容</b>的 —— 编号可有可无、任何块名都收（模型偶尔会把固定格式
+ * 泛化出「**大运：顺**」这类骨架外的块，照样成卡，不丢内容）；
+ * 一行都没匹配上时退回整段 markdown，等价于改动前的行为。
+ */
+function renderHead(round: Round): string {
+  const at = detailAt(round.report);
+  const head = at ? round.report.slice(0, at.start) : round.report;
+  const { rest, blocks, extras } = splitVerdict(head);
+  if (!blocks.length && !extras.length) return renderMarkdown(head);
+
+  const cards = blocks
+    .map(
+      (b) => `<div class="vcard ${DIR_CLASS[b.dir] ?? 'is-ping'}">` +
+        `<div class="v-top"><span class="v-block">${escHtml(b.name)}</span>` +
+        `<span class="v-badge">${escHtml(b.dir)}</span>` +
+        `<span class="v-hint">${DIR_HINT[b.dir] ?? ''}</span></div>` +
+        `<div class="v-row"><span class="v-k">依据</span><span>${inlineMini(b.basis)}</span></div>` +
+        `<div class="v-row"><span class="v-k">应期</span><span>${inlineMini(b.timing)}</span></div>` +
+        `</div>`,
+    )
+    .join('');
+  const extraHtml = extras.length
+    ? `<p class="vextras-title">补充判断</p>` +
+      extras
+        .map(
+          (e) => `<div class="vx">` +
+            `<div class="vx-head">${inlineMini(e.title)}</div>` +
+            `<div class="v-row"><span class="v-k">依据</span><span>${inlineMini(e.basis)}</span></div>` +
+            `<div class="v-row"><span class="v-k">应期</span><span>${inlineMini(e.timing)}</span></div>` +
+            `</div>`,
+        )
+        .join('')
+    : '';
+  return renderMarkdown(rest) + `<div class="vgrid">${cards}</div>` + extraHtml;
+}
+
+// ---- 核心结论卡片化的解析（只认后端 SUMMARIZE_USER 写死的行格式，见 metaphysics 仓库 FortunePrompts）----
+
+/** 四块行：`**事业：平** ｜ 依据：… ｜ 应期：…`（编号可有可无）。方向限定 顺/平/逆 单字。 */
+const RE_VERDICT =
+  /^[ \t]*(?:\d+[.)][ \t]+)?\*\*([^：*\n]{1,6})：([顺平逆])\*\*[ \t]*｜[ \t]*依据：(.+?)[ \t]*｜[ \t]*应期：(.+?)[ \t]*$/;
+
+/** 补充条：`**结论** ｜ 依据：… ｜ 应期：…`（与四块行的差别：冒号后不是顺/平/逆）。 */
+const RE_EXTRA =
+  /^[ \t]*(?:\d+[.)][ \t]+)?\*\*(.+?)\*\*[ \t]*｜[ \t]*依据：(.+?)[ \t]*｜[ \t]*应期：(.+?)[ \t]*$/;
+
+const DIR_CLASS: Record<string, string> = {顺: 'is-shun', 平: 'is-ping', 逆: 'is-ni'};
+const DIR_HINT: Record<string, string> = {顺: '推得动', 平: '信号相互抵消', 逆: '有阻，要绕'};
+
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** 依据/应期里偶尔出现 **加粗**；与渲染器同口径：先转义再替换，v-html 安全 */
+function inlineMini(s: string): string {
+  return escHtml(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
+interface VerdictBlock {
+  name: string;
+  dir: string;
+  basis: string;
+  timing: string;
+}
+
+interface VerdictExtra {
+  title: string;
+  basis: string;
+  timing: string;
+}
+
+/** 把「核心结论」段拆成：其余行 / 四块卡 / 补充条。解析只丢样式不丢内容。 */
+function splitVerdict(head: string): {rest: string; blocks: VerdictBlock[]; extras: VerdictExtra[]} {
+  const blocks: VerdictBlock[] = [];
+  const extras: VerdictExtra[] = [];
+  const rest: string[] = [];
+  for (const line of head.split('\n')) {
+    const m = RE_VERDICT.exec(line);
+    if (m) {
+      blocks.push({name: m[1].trim(), dir: m[2], basis: m[3], timing: m[4]});
+      continue;
+    }
+    const e = RE_EXTRA.exec(line);
+    if (e) {
+      extras.push({title: e[1], basis: e[2], timing: e[3]});
+      continue;
+    }
+    rest.push(line);
+  }
+  return {rest: rest.join('\n'), blocks, extras};
+}
+
+/** 详章那段（不含分隔标题本身 —— 标题已经变成折叠按钮了） */
+function renderDetail(round: Round): string {
+  const at = detailAt(round.report);
+  return at ? renderMarkdown(round.report.slice(at.end)) : '';
+}
+
+/**
+ * 是否可以折叠。
+ *
+ * <p>切开后两侧都必须有内容，否则宁可整篇平铺：
+ * 首屏为空会造成「上面一片空白」，详章为空会让「点了展开什么也没有」——
+ * 两种都比不折叠更像 bug。所以判据是<b>三段都有货</b>才算按约定输出。
+ */
+function hasDetail(round: Round): boolean {
+  const at = detailAt(round.report);
+  if (!at) return false;
+  return !!round.report.slice(0, at.start).trim() && !!round.report.slice(at.end).trim();
+}
+
+/** 详章里有几节（数标题行）。只用来给折叠按钮补一个「有多少东西」的预告 */
+function detailCount(round: Round): number {
+  const at = detailAt(round.report);
+  if (!at) return 0;
+  return round.report
+    .slice(at.end)
+    .split('\n')
+    .filter((line) => /^[ \t]*#{1,6}[ \t]*\S/.test(line)).length;
 }
 
 /** 四柱卡片正文：与报告同一个渲染器（含转义）。柱子事件一次到位，不存在流式重解析的性能顾虑 */
@@ -1138,6 +1310,202 @@ onUnmounted(() => {
 
 .round-error {
   margin-top: 14px;
+}
+
+/* ==================== 核心结论卡片 ==================== */
+
+/**
+ * 四块（事业/财富/婚姻/健康…）从编号列表重排成卡片网格。
+ * HTML 是 renderHead 里拼的（v-html 注入），所以全部要走 :deep。
+ * 方向着色：顺=鎏金（正向）、平=中性线色、逆=冷蓝（收敛）——
+ * 刻意不用红绿，那是 A 股涨跌的语义，放在命理报告里会误读。
+ */
+.report {
+  :deep(.vgrid) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 2px 0 16px;
+  }
+
+  :deep(.vcard) {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--panel-2);
+    padding: 12px 14px 11px 16px;
+    overflow: hidden;
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 3px;
+      background: var(--line-strong);
+    }
+
+    &.is-shun::before {
+      background: var(--gold-2);
+    }
+
+    &.is-ni::before {
+      background: var(--blue);
+    }
+  }
+
+  :deep(.v-top) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+  }
+
+  :deep(.v-block) {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--text);
+  }
+
+  :deep(.v-badge) {
+    font-size: 11px;
+    line-height: 1.7;
+    padding: 0 9px;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    color: var(--text-faint);
+  }
+
+  :deep(.is-shun .v-badge) {
+    color: var(--gold);
+    border-color: var(--gold-soft);
+    background: var(--gold-wash);
+  }
+
+  :deep(.is-ni .v-badge) {
+    color: var(--blue);
+    border-color: var(--blue);
+    background: rgba(61, 107, 150, 0.09);
+  }
+
+  :deep(.v-hint) {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.04em;
+  }
+
+  :deep(.v-row) {
+    display: flex;
+    gap: 7px;
+    margin-top: 4px;
+    font-size: 12.5px;
+    line-height: 1.78;
+    color: var(--text-dim);
+
+    strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+  }
+
+  :deep(.v-k) {
+    flex: none;
+    width: 2.6em;
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    padding-top: 2px;
+  }
+
+  :deep(.vextras-title) {
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: var(--text-faint);
+    margin: 14px 0 8px;
+  }
+
+  :deep(.vx) {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 11px 14px;
+    margin-bottom: 9px;
+  }
+
+  :deep(.vx-head) {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--gold);
+    margin-bottom: 5px;
+    letter-spacing: 0.04em;
+  }
+}
+
+@media (max-width: 720px) {
+  .report {
+    :deep(.vgrid) {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+/* ==================== 详章折叠 ==================== */
+
+/**
+ * 折叠条做成「一整行的按钮」而不是 el-collapse：
+ * 详章里要用和正文完全一致的 markdown 样式（h3 / 表格 / 引用），
+ * 塞进 el-collapse-item 的话得再覆盖一层它的内边距与标题排版，得不偿失。
+ */
+.detail {
+  margin-top: 4px;
+}
+
+.detail-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  color: var(--gold);
+  font-size: 13px;
+  font-family: inherit;
+  letter-spacing: 0.06em;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+
+  &:hover {
+    border-color: var(--gold-soft);
+    background: var(--gold-wash);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--gold-2);
+    outline-offset: 2px;
+  }
+}
+
+.detail-chev {
+  transition: transform 0.2s ease;
+
+  &.is-open {
+    transform: rotate(90deg);
+  }
+}
+
+.detail-count {
+  margin-left: auto;
+  font-size: 12px;
+  letter-spacing: 0;
+  color: var(--text-faint);
+}
+
+/* 详章与首屏的间距。上边距给在这里而不是 .detail，否则收起时也会留一道空档 */
+.detail-body {
+  margin-top: 18px;
 }
 
 /* ==================== 输入区 ==================== */
