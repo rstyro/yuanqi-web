@@ -4,7 +4,8 @@
 
     <!--
       方案 A 的两栏骨架：左边历史会话，右边主区。
-      主区不再单独让位 —— 侧栏宽度由 CSS 的 .hist 定，主区 flex 自适应。
+      侧栏宽度由 CSS 的 .hist 定 —— 宽视口下它**脱离文档流**（fixed 贴屏幕左缘），
+      把占的宽度还给主区，正文才能和 Header 的内容轴对齐；窄视口退回占位写法。
     -->
     <div class="layout" :class="{'is-rail': rail && !overlayOpen, 'is-overlay': overlayOpen}">
       <div v-if="overlayOpen" class="hist-veil" @click="overlayOpen = false"></div>
@@ -1316,10 +1317,20 @@ onUnmounted(() => {
 $histW: 150px;
 $histRailW: 40px;
 
+/**
+ * 侧栏「脱流」的视口门槛。
+ *
+ * <p>正文轴左边界 = (视口 − $mainWidth) / 2（≥$mainWidth 时），要让它大于侧栏宽
+ * $histW 并留出呼吸间隙，视口至少 ≈1416，取整 1420。低于此值退回占位写法：
+ * 宁可暂时与 Header 内容轴差半个侧栏宽，也不能让侧栏压住正文。
+ */
+$histBreakW: 1420px;
+
 .layout {
   display: flex;
   // 必须是 flex-start。默认的 stretch 会把侧栏拉到和主区一样高，
   // 那样 sticky 就没有可粘区间了，侧栏会跟着页面一起滚走。
+  // （宽视口下侧栏转 fixed，这个容器里就只剩 .main 一个在流项。）
   align-items: flex-start;
 }
 
@@ -1332,15 +1343,17 @@ $histRailW: 40px;
 .hist {
   flex: none;
   /**
-   * 吸顶。header 现在是 sticky 吸顶的（见 components/Header.vue），所以侧栏的
-   * 粘附位置要下移到 header 下沿（top: $headerH），否则它会钻到 header 背面被盖住。
-   *
-   * <p>用 sticky 而不是 fixed：fixed 与 header 的层叠关系要靠手调 z-index 维持，
-   * sticky 天然从 header 下方开始。
+   * 定位两档，见文件末尾的媒体查询：
+   * · 默认（窄/中视口）sticky **占位** —— 页首那一刻正好顶到 header 下沿，
+   *   所以要靠 top: $headerH 让位（header 是 sticky 的，不让位会钻到它背面被盖住）。
+   * · 宽视口（≥$histBreakW）改 fixed **脱流**，把占的这 150px 还给主区，
+   *   正文才能和 Header 的内容轴对齐。
    */
   position: sticky;
   top: $headerH;
-  z-index: 15;
+  // 25 要压过 .composer 的 20：宽视口下侧栏 fixed、吸底输入条铺满整页，
+  // 两者在左下角重叠，得让侧栏盖在输入条上面；同时仍低于 Header 的 50。
+  z-index: 25;
 
   box-sizing: border-box;
   width: $histW;
@@ -1358,6 +1371,31 @@ $histRailW: 40px;
     width: $histRailW;
     padding-left: 4px;
     padding-right: 4px;
+  }
+}
+
+/**
+ * 宽视口：侧栏脱流，贴屏幕左缘。
+ *
+ * <p><b>为什么必须脱流</b>：正文容器（.content / .composer-inner）靠 margin: auto 居中，
+ * 而 auto 的基准是**父容器的内容盒** —— 只要侧栏还在文档流里占着 $histW，
+ * .main 的宽度就只剩「视口 − $histW」，整条正文轴被推右 $histW/2（=75px），
+ * 和 Header 那条居中于整个视口的内容轴对不上。
+ * 「生辰八字」「关于」两页没有侧栏，.main 即视口宽，所以它们天然对齐 ——
+ * 不是它们写对了，是它们没被挤过。
+ *
+ * <p>脱流后 .main 恢复满宽，正文回到整页轴，与那两页走同一条路径。
+ * 位置与原来 sticky 时完全一致（top: $headerH，高度 100vh − header），
+ * 所以视觉零变化 —— 变的只是「不再占文档流的宽度」，
+ * 顺带让吸底输入条的模糊背景重新铺满整页（原来是齐着侧栏右缘断开的）。
+ *
+ * <p>⚠️ 阈值由 $histBreakW 的注释推导。窄于它时退回上面的占位写法：
+ * 宁可正文与 Header 轴差半个侧栏宽，也不能让侧栏压住正文。
+ */
+@media (min-width: $histBreakW) {
+  .hist {
+    position: fixed;
+    left: 0;
   }
 }
 
