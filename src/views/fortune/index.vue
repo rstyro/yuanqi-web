@@ -1332,18 +1332,20 @@ $histRailW: 40px;
 .hist {
   flex: none;
   /**
-   * 吸顶。header（90px）在正常流里、会随页面滚走，侧栏贴住视口顶之后才谈得上「常驻」。
+   * 吸顶。header 现在是 sticky 吸顶的（见 components/Header.vue），所以侧栏的
+   * 粘附位置要下移到 header 下沿（top: $headerH），否则它会钻到 header 背面被盖住。
    *
-   * <p>用 sticky 而不是 fixed：fixed 与正常流里的 header 会重叠，
-   * 窄屏下正好压住左下角的 logo。sticky 天然从 header 下方开始。
+   * <p>用 sticky 而不是 fixed：fixed 与 header 的层叠关系要靠手调 z-index 维持，
+   * sticky 天然从 header 下方开始。
    */
   position: sticky;
-  top: 0;
+  top: $headerH;
   z-index: 15;
 
   box-sizing: border-box;
   width: $histW;
-  // 减掉 header 高度，页首那一刻正好铺满一屏，不会有一截伸到视口外
+  // 从 header 下沿（top 偏移）起算减掉 header 高度，页首那一刻正好铺到视口底，
+  // 不会有一截伸到视口外。top 偏移 + 这个高度 = 100vh，严丝合缝。
   height: calc(100vh - #{$headerH});
   display: flex;
   flex-direction: column;

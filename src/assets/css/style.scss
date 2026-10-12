@@ -1,7 +1,13 @@
-/*导航菜单背景颜色*/
+/*导航菜单背景颜色。仅作兜底 —— Header 的底色现已改由 --bg-blur 令牌统管，
+  见 components/Header.vue（半透明 + 毛玻璃，明亮/暗色各有一组值）。*/
 $bgColor: #f5f5f5;
-/*导航背景高度*/
-$headerH: 90px;
+/*导航背景高度。
+  64px 是 VitePress 那条细高条的尺寸；原来是 90px，配上 24px 的导航字号
+  显得又高又重，右侧控件簇贴在一起时尤其「挤」。改小后 Header、用户区
+  （UserMenu 的 height）、以及 AI 推演页那个 calc(100vh - headerH) 会一起跟着变。
+  说明：注释里不要写 # 加花括号的插值语法 —— 块注释会原样进 CSS，
+  其中的插值照样被求值，写在变量定义之前就会报 Undefined variable。*/
+$headerH: 64px;
 
 /*主体宽度 —— 除首页外，所有页面（含 Header 内层）的内容轴心。
   Header、八字页、AI 推演页、关于页都取它，页面之间才会落在同一条竖线上。*/
@@ -10,6 +16,17 @@ $mainWidth: 1100px;
 /*主体容器左右内边距。提取成变量而不是逐页写死，
   是为了让 Header 与页面内容用同一个值 —— 否则 logo 和下方卡片会差一截。*/
 $mainPad: 24px;
+
+/*导航栏内容轴宽度 —— **刻意比 $mainWidth 宽**。
+  导航是一条横贯页面的细带，如果和正文一样收在 1100，左右两端会空出一大块，
+  反而显得局促；VitePress 的导航也是比内容区更宽的。
+  这个值给 Header 两侧的「自由区」留出空间：logo 待在左侧自由区，
+  主题钮 / GitHub / 后续社交入口待在右侧自由区；而菜单右对齐、
+  头像（未登录时是菜单本身）右边缘严格落在正文右边界上。
+  右侧自由区要装得下那组扩展位（约 80px），所以这个值不能太窄 ——
+  视口窄到装不下时会在 1280px 处回退成「整组收回内容轴内」，见 Header.vue 的 @media。
+  想让自由区更宽就调大它（代价是窄屏会更早隐藏站名，见 Header.vue 的 @media）。*/
+$headerWidth: 1400px;
 
 /**
  * 主体容器：定宽 + 居中 + 页码对齐。
@@ -22,12 +39,13 @@ $mainPad: 24px;
  * 就地声明而不动全局：全局改 box-sizing 会影响一批「width + padding」
  * 混写的老样式（如时间轴的 .tl-yun），风险不值得。
  *
- * @param {Length} $pad 水平内边距，默认 $mainPad
+ * @param {Length} $pad 水平内边距，默认 $mainPad（传 null 表示「只要定宽居中」）
+ * @param {Length} $max 轴心最大宽度，默认 $mainWidth。Header 传 $headerWidth 放宽
  */
-@mixin main-container($pad: null) {
+@mixin main-container($pad: null, $max: $mainWidth) {
   box-sizing: border-box;
   width: 100%;
-  max-width: $mainWidth;
+  max-width: $max;
   margin-left: auto;
   margin-right: auto;
 

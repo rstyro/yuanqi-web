@@ -19,7 +19,7 @@
       @command="onCommand"
   >
     <span class="user-trigger">
-      <el-avatar :size="34" :src="avatarSrc" class="user-avatar">
+      <el-avatar :size="28" :src="avatarSrc" class="user-avatar">
         <!-- src 为空或加载失败时 el-avatar 会渲染这个插槽 -->
         <span class="user-avatar-fallback">{{ initial }}</span>
       </el-avatar>
@@ -138,15 +138,16 @@ function handleLogout(): void {
   .user-trigger {
     display: inline-flex;
     align-items: center;
-    gap: 9px;
-    height: 40px;
-    padding: 0 12px;
-    border-radius: 999px;
+    gap: 7px;
+    height: 32px;
+    padding: 0 8px;
+    border-radius: 8px;
     cursor: pointer;
     color: var(--text-dim);
-    // 导航菜单是 24px 字号，账户区比它小一档（15px）才有「次级控件」的层次，
-    // 但又不能太小 —— 太小在 90px 高的导航里没有存在感。
-    font-size: 15px;
+    // 导航链接是 14px，账户区再小一档（13px）才有「次级控件」的层次。
+    // 原来是 15px、配 40px 高 —— 那是为 90px 的粗导航定的尺寸；条高收到 64px 后
+    // 一起收一圈，否则用户区会比导航本身还显眼。
+    font-size: 13px;
     transition: background-color 0.18s ease, color 0.18s ease;
     // el-dropdown 的触发元素默认带 outline，点完会留一圈虚线
     outline: none;
@@ -169,7 +170,7 @@ function handleLogout(): void {
     }
 
     .user-name {
-      max-width: 120px;
+      max-width: 96px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;

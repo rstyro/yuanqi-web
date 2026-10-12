@@ -72,7 +72,24 @@ export default defineConfig({
         preprocessorOptions:{
             scss: {
                 api: 'modern-compiler',
-                additionalData: `@use "@/assets/css/style.scss" as *;`
+                /**
+                 * 把全局变量（$headerH / $mainWidth / $mainPad）和 main-container mixin
+                 * 预置进每个 scss 编译单元，组件里才能直接引到，不必逐个 @use。
+                 *
+                 * <p><b>必须是函数、并且跳过 style.scss 自身</b>：这个文件本身就是变量库，
+                 * 若连它也注入一句「@use 自己」，sass 会直接抛
+                 * `Module loop: this module is already being loaded`，全站样式编译失败。
+                 * 这个坑之前一直被 vite 的编译缓存盖着（style.scss 长期没动过，
+                 * 缓存里还是好的），一旦改动它就暴露。
+                 *
+                 * <p>注入串末尾的换行别去掉：字符串是直接拼在文件内容前的，
+                 * 少了它，`@use ...;` 会和文件第一行黏成同一行。
+                 */
+                additionalData: (content: string, filePath: string) => {
+                    const normalized = filePath.replace(/\\/g, '/');
+                    if (normalized.endsWith('assets/css/style.scss')) return content;
+                    return `@use "@/assets/css/style.scss" as *;\n${content}`;
+                },
             }
         }
     }

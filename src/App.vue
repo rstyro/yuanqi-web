@@ -64,15 +64,13 @@ onMounted(() => {
   $darkBgColor: #292a2d;
   $darkColor: #FFF;
 
-  header {
-    /*首页导航背景颜色*/
-    background-color: $bgColor;
-
-    .header-inner, .el-menu-item, .flex-grow, .el-sub-menu {
-      background-color: $bgColor !important;
-      --el-menu-text-color: #fff;
-    }
-  }
+  /*
+    Header 的底色已改由 --bg-blur 令牌统管（半透明 + 毛玻璃 + 底部 1px 线），
+    明亮/暗色各有一组值、自动跟随主题。这里原来用 `background-color: $bgColor`
+    硬写一个 #191919 纯色，会把那层半透明压掉，所以整段删掉。
+    导航也从 el-menu 换成了 <nav> + RouterLink（见 components/Header.vue），
+    .el-menu-item 之类的字色覆盖随之失效，同样不再需要。
+  */
 
   .main-header {
     //background-image: linear-gradient(to top, #6a85b6 0%, #bac8e0 100%);
