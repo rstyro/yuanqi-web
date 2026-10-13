@@ -134,6 +134,38 @@ export interface LiuNian {
     pillar: Pillar;
 }
 
+/**
+ * 一个流月（**节气月**，`POST /home/liuYue`）。
+ *
+ * **「月」不是公历月、也不是农历月**：一个月从某个【节】交节那刻开始，到下一个节为止，
+ * 区间是半开的 `[startDateTime, nextTermDateTime)`。一个流年（立春 → 次年立春）
+ * 正好被切成 12 个月，第 1 个是寅月、第 12 个是丑月。
+ *
+ * 所以**「2026 年 1 月」属丙午流年的丑月**，它的 `year` 是 `2027`。
+ * 要显示「这一月是哪年哪月」请读 `year` / `month`，**不要拿流年加 `index` 去推**。
+ *
+ * 也不要用 `now` 的「年月」去判「哪个月是本月」—— 一个流月横跨两个公历月
+ * （戌月 10/08 → 11/07），11/01 那天的交节月仍是 10 月。**要判当前月必须比时刻**。
+ */
+export interface LiuYue {
+    /** 流年内第几个月，1~12（1 = 寅月，从立春起算） */
+    index: number;
+    /** 节气月名，如「寅月」 */
+    name: string;
+    /** 起始的节名，如「立春」「惊蛰」 */
+    termName: string;
+    /** 交节时刻所在公历年（丑月恒为流年的次年） */
+    year: number;
+    /** 交节时刻所在公历月，1~12 */
+    month: number;
+    ganZhi: string;
+    /** 起节时刻（含） */
+    startDateTime: string;
+    /** 下一个节的原时刻（**不含**）—— 本月的半开区间终点 */
+    nextTermDateTime: string;
+    pillar: Pillar;
+}
+
 /** 一步大运（下辖 10 个流年） */
 export interface DaYun {
     /** 第几步，从 1 开始 */
@@ -351,6 +383,107 @@ export interface StructureView {
     tongGen: StemRoots[];
 }
 
+/** 格局成败的分级（与后端 `PatternGrade` 一一对应） */
+export type PatternGradeCode =
+    | "CHENG"
+    | "DAI_FU"
+    | "PO_WITH_RESCUE"
+    | "PO"
+    | "NOT_APPLICABLE";
+
+/**
+ * 格局成败里的一条依据（相神 / 破格 / 救应）。
+ *
+ * `gods` 与 `chars` **同序**：第 i 个字就是 `gods[i]` 这个十神。
+ */
+export interface PatternFinding {
+    /** 角色：`相神` / `破格` / `救应` */
+    role: string;
+    /** 类别名，如 `财` / `伤官` / `比劫` —— 规则表里的那个称呼 */
+    label: string;
+    gods: string[];
+    chars: string[];
+    /** 每个字的落点（`年干` / `月支` …），与 `chars` 同序 */
+    positions: string[];
+    /** 一句话说明（服务端拼好） */
+    text: string;
+}
+
+/**
+ * 格局的**成败与救应**（v12 新增）。
+ *
+ * 补的是「格名之外」那一段：`caput` 只说是什么格、`structureView` 只说这个格怎么取的，
+ * 而「这个格立不立得住」原本没人回答 —— 子平论命的落点恰恰在这里。
+ *
+ * 与 `yongShen` 是**两把不同的尺子**（一把问「日主需要什么」，一把问「这个格需要什么、
+ * 什么会破坏它」），结论可以不同甚至相反，这不是矛盾。
+ * 外格（建禄 / 阳刃 / 专旺 / 特殊格）恒为 `NOT_APPLICABLE` 且 `findings` 为空。
+ */
+export interface PatternVo {
+    grade: { name: string; code: PatternGradeCode };
+    /** 与 `caput.name` 一致，如「正官格」；外格时也照给 */
+    caputName: string;
+    /** 一句话结论（服务端按档位分档措辞，直接展示） */
+    summary: string;
+    /** 顺序恒为「相神 → 破格 → 救应」，各角色内按 年→月→日→时 */
+    findings: PatternFinding[];
+}
+
+/** 一个宫位所主的六亲与人生阶段（宫法，盲派那一半） */
+export interface KinPalace {
+    /** `祖上宫` / `父母兄弟宫` / `夫妻宫` / `子女宫` */
+    palace: string;
+    /** `年柱` / `月柱` / `日柱` / `时柱` */
+    pillarType: string;
+    ganZhi: string;
+    /** 该宫所主之六亲（一宫可兼主两位） */
+    kin: string[];
+    ageRange: string;
+    /** 天干十神；**日柱为「日主」** */
+    ganGod: string | null;
+    zhiGod: string | null;
+    /** 损耗性关系：冲 / 刑 / 害。为空 = 此宫安静 */
+    disrupt: string[];
+    /** 牵绊性关系：五合 / 六合 / 三合 / 半合 / 暗合 / 三会 */
+    bond: string[];
+    /** 一句话：此宫被扰还是被绊还是安静 */
+    reading: string;
+}
+
+/** 一颗六亲星及其在原局的明暗（星法，子平那一半） */
+export interface KinStar {
+    /** `父` / `母` / `兄弟` / `姐妹` / `配偶` / `子女` */
+    role: string;
+    /** 子平映射的表述，如「男命以正财为妻星」 */
+    mapping: string;
+    gods: string[];
+    chars: string[];
+    /** 与 `chars` 同序 */
+    positions: string[];
+    /** `透干通根` / `透干` / `通根` / `不见` */
+    state: string;
+    /** 此星所主之宫名，用于宫星合参 */
+    palace: string;
+    reading: string;
+}
+
+/**
+ * 宫位六亲（v12 新增）—— **「宫」与「星」两法并出**。
+ *
+ * `stars` 走子平（哪个十神代表哪位亲属、透不透、有没有根），
+ * `palaces` 走盲派的宫法（哪一柱代表哪位亲属、宫被刑冲合害扰动没有），
+ * `notes` 是宫星合参。两法并列给依据，**不合成吉凶总分，也不断六亲存殁**。
+ */
+export interface KinVo {
+    gender: string;
+    /** 四宫，顺序恒为 年 → 月 → 日 → 时 */
+    palaces: KinPalace[];
+    /** 六亲星，顺序恒为 父 → 母 → 兄弟 → 姐妹 → 配偶 → 子女 */
+    stars: KinStar[];
+    /** 宫星合参；第一段恒为两法分工说明 */
+    notes: string[];
+}
+
 /** 一张命盘 */
 export interface PillarVo {
     ganZhi: string;
@@ -375,6 +508,18 @@ export interface PillarVo {
      * 理论上不会为 null，但旧缓存 / 手搓对象上可能没有 —— 前端仍按 `null` 兜底。
      */
     structureView: StructureView | null;
+    /**
+     * 格局成败与救应（v12 新增）。外格恒为 `NOT_APPLICABLE`。
+     *
+     * 理论上不会为 null，但旧缓存 / 手搓对象上可能没有 —— 前端仍按 `null` 兜底。
+     */
+    pattern: PatternVo | null;
+    /**
+     * 宫位六亲（v12 新增）：四宫 + 六亲星 + 宫星合参，顺序固定。
+     *
+     * 同上，旧缓存上可能没有，按 `null` 兜底。
+     */
+    kin: KinVo | null;
     /** 请求带 `extend=false` 时为 null */
     mergeVo: MergeVo | null;
     zodiac: string;

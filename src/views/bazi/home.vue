@@ -301,7 +301,7 @@
             <div class="card-head">
               <div class="card-title">
                 命盘
-                <span class="hint">左侧四柱为原局，右侧「大运 / 流年」跟随下方时间轴选择</span>
+                <span class="hint">左侧四柱为原局，右侧「大运 / 流年 / 流月」跟随下方时间轴选择</span>
               </div>
             </div>
           </template>
@@ -493,6 +493,57 @@
           </div>
         </el-card>
 
+        <!-- ================= 流月时间轴 ================= -->
+        <el-card class="block">
+          <template #header>
+            <div class="card-head">
+              <div class="card-title">
+                流月
+                <span class="hint">
+                  <template v-if="activeLiuNian">
+                    {{ activeLiuNian.year }} 年（{{ activeLiuNian.pillar?.ganZhi || '—' }} 年干支）·
+                  </template>
+                  按十二「节」划分：寅月起、丑月止
+                </span>
+              </div>
+              <div class="legend">
+                <span class="dot"></span>标记「今」为当前所处流月
+              </div>
+            </div>
+          </template>
+
+          <div v-if="liuYueLoading && !liuYueList.length" class="no-relation">流月加载中…</div>
+          <div v-else-if="!liuYueList.length" class="no-relation">未取到流月数据</div>
+          <div v-else class="timeline-scroll">
+            <div class="timeline is-liuyue">
+              <!-- 格子只有 78px 宽，第二行放得下「立春」这两个字、放不下「2月 · 立春」，
+                   所以公历月与完整区间走 title 悬停 + 下方那行说明。 -->
+              <div v-for="(m, index) in liuYueList" :key="'ly' + index"
+                   class="tl-yun"
+                   :class="{ 'is-active': index === monthActiveIndex, 'is-now': isNowLiuYue(m) }"
+                   :title="m.name + '（' + m.termName + '）：' + fmt(m.startDateTime) + ' ~ ' + fmt(m.nextTermDateTime)"
+                   @click="checkMonth(index)">
+                <div class="tl-years">{{ m.name }}</div>
+                <div class="tl-age">{{ m.termName }}</div>
+                <div class="tl-gz">{{ m.ganZhi }}</div>
+                <div class="tl-gods">
+                  {{ getShortGod(m.pillar?.tianGanGod) }}{{ getShortGod(m.pillar?.diZhiGod) }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="monthActive" class="yun-note">
+            {{ monthActive.index }} / 12 —— <b>{{ monthActive.name }}</b>（起节 {{ monthActive.termName }}）：
+            真实区间 <b class="mono">{{ fmt(monthActive.startDateTime) }} ~ {{ fmt(monthActive.nextTermDateTime) }}</b>
+            <span class="note-sub">
+              区间为<b>半开</b>（含起节、不含下一个节）。月名按节气走，所以这一月落在
+              <b>{{ monthActive.year }} 年 {{ monthActive.month }} 月</b> —— 不是公历月，
+              跨年时（丑月）会落到流年的次年。
+            </span>
+          </div>
+        </el-card>
+
         <!-- ================= 格局与用神 ================= -->
         <el-card class="block">
           <template #header>
@@ -527,6 +578,51 @@
             <div class="pattern-basis" :class="'is-' + caputBasis.kind">
               <span class="basis-key">取格依据</span>
               <span class="basis-text">{{ caputBasis.text }}</span>
+            </div>
+          </div>
+
+          <!-- 格局成败与救应：格名之外那一段。子平论命的落点在这里，不在格名上。
+               v12 新增；旧缓存里没有 pattern 时整块不渲染。 -->
+          <div v-if="pattern" class="grade-row" :class="'is-' + gradeClass">
+            <div class="grade-head">
+              <span class="pattern-key">成败</span>
+              <span class="grade-chip" :class="'is-' + gradeClass">
+                {{ pattern.grade?.name || '—' }}
+              </span>
+              <el-popover placement="bottom" :width="460" trigger="hover" title="格局成败怎么判">
+                <template #reference><span class="grade-help">判据</span></template>
+                <div class="pop-detail">
+                  <p><b>三把钥匙</b>：<b>相神</b>辅佐本格、<b>破格之神</b>破坏本格、<b>救应</b>制住破格之神。</p>
+                  <p><b>破格之神必须透干</b>（落在年 / 月 / 时干）才算有力；<b>相神与救应「见」即可</b>
+                    （透干或见于地支本气）。这一条刻意不对称 —— 判破太宽会人人破格，
+                    判救太严会把「有救」说成「无救」，后者是更重的结论。</p>
+                  <p><b>五档</b>：成格（无破且有相神）、待辅（无破但相神不备）、
+                    <b>破而有救</b>（有破但被制住 / 通关）、<b>破而不救</b>（有破且无救）、
+                    不论成败（外格：建禄 / 阳刃 / 专旺，成败另有体系）。</p>
+                  <p><b>本档只判「格」，不判「命」。</b>破格说的是这个格局被破坏了，
+                    不等于人不好 —— 层次高低还看大运与喜用得地。</p>
+                </div>
+              </el-popover>
+            </div>
+            <div class="grade-summary">{{ pattern.summary }}</div>
+            <div v-if="pattern.findings?.length" class="grade-findings">
+              <div v-for="(f, fi) in pattern.findings" :key="'pf' + fi" class="finding-row">
+                <span class="finding-role" :class="'is-' + ROLE_CLASS[f.role]">{{ f.role }}</span>
+                <span class="finding-label">{{ f.label }}</span>
+                <div class="relation-tags">
+                  <span v-for="(c, ci) in f.chars" :key="'fc' + fi + ci" class="finding-char">
+                    <b>{{ c }}</b><em>{{ f.positions[ci] }}</em>
+                  </span>
+                  <span v-if="!f.chars.length" class="no-relation">（无字可指，见说明）</span>
+                </div>
+              </div>
+            </div>
+            <div v-else class="grade-findings">
+              <span class="no-relation">
+                {{ pattern.grade?.code === 'NOT_APPLICABLE'
+                  ? '外格不按八格的相神 / 破格 / 救应论，故无依据可列'
+                  : '本档无依据条目' }}
+              </span>
             </div>
           </div>
 
@@ -708,6 +804,94 @@
             </div>
           </el-card>
         </div>
+
+        <!-- ================= 宫位六亲 ================= -->
+        <!-- 「宫」「星」两法并出：stars 走子平（哪个十神代表哪位亲属），
+             palaces 走盲派宫法（哪一柱代表哪位亲属、宫安不安）。v12 新增。 -->
+        <el-card v-if="kin" class="block">
+          <template #header>
+            <div class="card-head">
+              <div class="card-title">
+                宫位六亲
+                <span class="hint">
+                  子平以「星」论六亲（十神映射），盲派以「宫」论（某柱主某亲）；
+                  两法并列给依据，不断六亲存殁
+                </span>
+              </div>
+            </div>
+          </template>
+
+          <!-- 四宫 -->
+          <div class="relation-block">
+            <div class="relation-label">
+              四宫
+              <span class="cnt">{{ kin.palaces?.length || 0 }}</span>
+              <span class="label-hint">冲 / 刑 / 害为「扰动」，合 / 会为「牵绊」，二者不同义</span>
+            </div>
+            <div class="palace-grid">
+              <div v-for="p in (kin.palaces || [])" :key="p.palace" class="palace-cell"
+                   :class="palaceClass(p)">
+                <div class="palace-head">
+                  <span class="palace-name">{{ p.palace }}</span>
+                  <span class="palace-pillar">{{ p.pillarType }} {{ p.ganZhi }}</span>
+                </div>
+                <div class="palace-kin">{{ (p.kin || []).join('、') }} · {{ p.ageRange }}</div>
+                <div class="palace-gods">
+                  <span>干 {{ p.ganGod || '—' }}</span>
+                  <span>支 {{ p.zhiGod || '—' }}</span>
+                </div>
+                <div class="relation-tags">
+                  <span v-for="(r, ri) in (p.disrupt || [])" :key="'pd' + ri"
+                        class="rel-chip is-disrupt">{{ r }}</span>
+                  <span v-for="(r, ri) in (p.bond || [])" :key="'pb' + ri"
+                        class="rel-chip is-bond">{{ r }}</span>
+                  <span v-if="!(p.disrupt || []).length && !(p.bond || []).length"
+                        class="rel-chip is-quiet">安静</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 六亲星 -->
+          <div class="relation-block">
+            <div class="relation-label">
+              六亲星
+              <span class="cnt">{{ kin.stars?.length || 0 }}</span>
+              <span class="label-hint">
+                子平映射；只认天干位与地支本气，中气 / 余气不计
+              </span>
+            </div>
+            <div class="star-grid">
+              <div v-for="s in (kin.stars || [])" :key="s.role" class="star-cell"
+                   :class="'is-' + STAR_CLASS[s.state]">
+                <div class="star-head">
+                  <span class="star-role">{{ s.role }}</span>
+                  <span class="star-state">{{ s.state }}</span>
+                </div>
+                <div class="star-mapping">{{ s.mapping }}</div>
+                <div class="relation-tags">
+                  <span v-for="(c, ci) in (s.chars || [])" :key="'sc' + ci" class="finding-char">
+                    <b>{{ c }}</b><em>{{ s.positions[ci] }}</em>
+                  </span>
+                  <span v-if="!(s.chars || []).length" class="no-relation">原局不现</span>
+                </div>
+                <div class="star-gods">十神 {{ (s.gods || []).join('、') }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 宫星合参 -->
+          <div v-if="kin.notes?.length" class="relation-block">
+            <div class="relation-label">
+              宫星合参
+              <span class="label-hint">首条恒为两法分工说明；【】标出「宫破星无」与「星宫俱安」</span>
+            </div>
+            <ul class="kin-notes">
+              <li v-for="(n, ni) in kin.notes" :key="'kn' + ni"
+                  :class="{ 'is-key': n.startsWith('【') }">{{ n }}</li>
+            </ul>
+          </div>
+        </el-card>
       </template>
     </div>
   </div>
@@ -718,7 +902,7 @@ import {computed, onMounted, reactive, ref, watch} from 'vue';
 import {useRoute, useRouter} from 'vue-router';
 import {ElMessage} from 'element-plus';
 import Header from '@/components/Header.vue';
-import {getBaziInfo, getRegionChildren} from '@/api/module/bazi';
+import {getBaziInfo, getLiuYueList, getRegionChildren} from '@/api/module/bazi';
 import type {
   BaziQuery,
   Caput,
@@ -727,8 +911,11 @@ import type {
   GanZhiDict,
   LifeTime,
   LiuNian,
+  LiuYue,
+  KinVo,
   LunarExtend,
   MergeVo,
+  PatternVo,
   Pillar,
   PillarVo,
   QiYun,
@@ -766,8 +953,12 @@ const pillarDto = reactive<BaziQuery>({
 const pillarVo = ref<Partial<PillarVo>>({});
 /** 四柱（已补 title） */
 const fourPillars = ref<Pillar[]>([]);
-/** 命盘表右端平铺的两根柱子：大运 + 选中流年 */
-const yunPillars = ref<Partial<Pillar>[]>([{}, {}]);
+/**
+ * 命盘表右端平铺的三根柱子：大运 + 选中流年 + 选中流月。
+ *
+ * 长度恒为 3，模板里的下标访问不会炸（大运格对应 [0]，`first-yun` 靠它画左侧分隔线）。
+ */
+const yunPillars = ref<Partial<Pillar>[]>([{}, {}, {}]);
 
 /** 柱子里的干支只存中文名，完整属性在这里查 */
 const ganZhiDict = ref<GanZhiDict>({tianGan: {}, diZhi: {}});
@@ -779,6 +970,10 @@ const lifeTime = ref<LifeTime | null>(null);
 const caput = ref<Caput | null>(null);
 /** 结构视图：取格依据 + 透干 + 通根（后端算，前端只展示） */
 const structureView = ref<StructureView | null>(null);
+/** 格局成败与救应：相神 / 破格 / 救应（后端算，前端只展示） */
+const pattern = ref<PatternVo | null>(null);
+/** 宫位六亲：四宫 + 六亲星 + 宫星合参（后端算，前端只展示） */
+const kin = ref<KinVo | null>(null);
 const mergeVo = ref<MergeVo | null>(null);
 const lunarExtendMap = ref<Record<string, LunarExtend>>({});
 
@@ -791,6 +986,23 @@ const SECT_OPTIONS = [
 
 const yunActiveIndex = ref(0);
 const fleetActiveIndex = ref(0);
+const monthActiveIndex = ref(0);
+
+/**
+ * 当前选中流年的 12 个流月（节气月）。
+ *
+ * 单独一个请求、**不随排盘一起返回**：10 步大运 × 10 流年 × 12 月 = 1200 根柱子，
+ * 一起塞进排盘响应会让整包从几十 KB 涨到几百 KB，而页面上同时只看得到一个流年的 12 个月。
+ */
+const liuYueList = ref<LiuYue[]>([]);
+const liuYueLoading = ref(false);
+/**
+ * 流月按「流年」缓存：在大运/流年之间来回点不必重复请求。
+ *
+ * key 还要带上流派吗？**不用** —— 流月与起运流派无关（四柱、神煞都不看流派），
+ * 换流派时同一年的 12 个月是完全相同的。带上反而会白白多请求一遍。
+ */
+const liuYueCache = new Map<number, LiuYue[]>();
 
 /** 服务端记录的实际校正情况（「开关开了」≠「真的校正了」） */
 const tstApplied = ref(false);
@@ -821,6 +1033,13 @@ const qiYun = computed<Partial<QiYun>>(() => qiYunMap.value[sect.value] || {});
 const daYunList = computed<DaYun[]>(() => daYunListMap.value[sect.value] || []);
 
 const activeYun = computed<DaYun | null>(() => daYunList.value[yunActiveIndex.value] || null);
+
+/** 当前选中的流年（流月时间轴的标题要用它的年份） */
+const activeLiuNian = computed<LiuNian | null>(
+    () => activeYun.value?.liuNianList?.[fleetActiveIndex.value] || null);
+
+/** 当前选中的流月（说明行要用它的区间） */
+const monthActive = computed<LiuYue | null>(() => liuYueList.value[monthActiveIndex.value] || null);
 
 /** 实际算出来的流派数（只有 1 个时不展示「对照」） */
 const sectCount = computed(() => Object.keys(qiYunMap.value).length);
@@ -961,6 +1180,39 @@ const monthHideStems = computed<HideStem[]>(() => {
 const monthBranch = computed(() => fourPillars.value[1]?.diZhi || '');
 
 const caputName = computed(() => caput.value?.name || '');
+
+/**
+ * 格局成败的样式钩子：把后端的 `grade.code` 映射成一个 CSS 类后缀。
+ *
+ * **认 `code` 而不是中文名** —— 中文名是给人看的措辞（可能微调），
+ * `code` 是稳定标识。认不出的档位退回 `unknown`，会显示成一个中性灰块，
+ * 而不是悄悄套上「成格」的绿色。
+ */
+const gradeClass = computed(() => {
+  const code = pattern.value?.grade?.code;
+  return code === 'CHENG' || code === 'DAI_FU' || code === 'PO_WITH_RESCUE'
+  || code === 'PO' || code === 'NOT_APPLICABLE' ? code.toLowerCase() : 'unknown';
+});
+
+/** 依据角色的样式后缀（相神 / 破格 / 救应） */
+const ROLE_CLASS: Record<string, string> = {相神: 'support', 破格: 'break', 救应: 'rescue'};
+
+/** 六亲星明暗档位的样式后缀 */
+const STAR_CLASS: Record<string, string> = {
+  透干通根: 'both', 透干: 'gan', 通根: 'zhi', 不见: 'absent',
+};
+
+/**
+ * 宫位的样式后缀：有扰动优先（最该被看见），其次牵绊，最后安静。
+ *
+ * ⚠️ 顺序不能反 —— 宫殿**同时**被冲与被合时（很常见），底色应当表示「动荡」而不是「牵连」。
+ */
+function palaceClass(p: { disrupt?: string[]; bond?: string[] }) {
+  if ((p.disrupt || []).length) {
+    return 'is-disrupt';
+  }
+  return (p.bond || []).length ? 'is-bond' : 'is-quiet';
+}
 
 /**
  * 是否八格（正格）。
@@ -1223,19 +1475,18 @@ const showFormBox = () => {
   showForm.value = !showForm.value;
 };
 
-/** 同步命盘表右端的两根柱子 */
+/** 同步命盘表右端的三根柱子（大运 / 流年 / 流月） */
 const syncYunPillars = (list: DaYun[]) => {
   const first = list[0];
-  if (first?.pillar) {
-    yunPillars.value = [
-      {...first.pillar, title: '大运'},
-      first.liuNianList?.[0]?.pillar
-          ? {...first.liuNianList[0].pillar, title: '流年'}
-          : {title: '流年'},
-    ];
-  } else {
-    yunPillars.value = [{title: '大运'}, {title: '流年'}];
-  }
+  yunPillars.value = [
+    first?.pillar ? {...first.pillar, title: '大运'} : {title: '大运'},
+    first?.liuNianList?.[0]?.pillar
+        ? {...first.liuNianList[0].pillar, title: '流年'}
+        : {title: '流年'},
+    // 流月是异步取的，先占位：这一列的存在保证表里 7 列宽度稳定，
+    // 不会因为「流月来得慢」先渲染 6 列、回来再挤成 7 列而跳一下。
+    {title: '流月'},
+  ];
 };
 
 const getPillarInfo = () => {
@@ -1253,6 +1504,8 @@ const getPillarInfo = () => {
     lifeTime.value = data.lifeTime || null;
     caput.value = data.caput || null;
     structureView.value = data.structureView || null;
+    pattern.value = data.pattern || null;
+    kin.value = data.kin || null;
     mergeVo.value = data.mergeVo || null;
     tstApplied.value = !!payload.useTrueSolarTime;
     tstAppliedMinutes.value = Number(payload.solarTimeOffsetMinutes) || 0;
@@ -1273,8 +1526,14 @@ const getPillarInfo = () => {
 
     syncYunPillars(daYunListMap.value[sect.value] || []);
     yunActiveIndex.value = 0;
-    fleetActiveIndex.value = 0;
+    // 换了一张盘，旧盘的流月必须清掉：同一个流年号在不同出生盘上神煞/十神都不同，
+    // 缓存留着会把上一张盘的流月显示到这一张盘上（而且看不出错）。
+    liuYueCache.clear();
+    liuYueList.value = [];
+    monthActiveIndex.value = 0;
     loaded.value = true;
+    // 走同一条联动入口，把右端「流年 / 流月」两列一并落到本盘第 1 步大运的第 1 个流年
+    checkFleetYear(0);
   }).catch((error: unknown) => {
     // 业务错误（如「农历该月没有这一天」）已由 axios 拦截器弹出中文提示，这里只兜底日志
     console.error('排盘请求失败：', error);
@@ -1304,13 +1563,12 @@ const goFortune = () => {
   });
 };
 
-/* ---- 大运 / 流年联动 ---- */
+/* ---- 大运 / 流年 / 流月 联动 ---- */
 
 const checkYun = (index: number) => {
   yunActiveIndex.value = index;
   const dy = daYunList.value[index];
   if (dy?.pillar) yunPillars.value[0] = {...dy.pillar, title: '大运'};
-  fleetActiveIndex.value = 0;
   checkFleetYear(0);
 };
 
@@ -1318,6 +1576,48 @@ const checkFleetYear = (index: number) => {
   fleetActiveIndex.value = index;
   const ln = activeYun.value?.liuNianList?.[index];
   if (ln?.pillar) yunPillars.value[1] = {...ln.pillar, title: '流年'};
+  // 换了流年 → 右端流月列与流月时间轴都要跟着换。先清空再取：
+  // 留着上一年 12 个月会让「选中 2026 年却显示 2025 年的月」这种错短暂可见。
+  monthActiveIndex.value = 0;
+  liuYueList.value = [];
+  yunPillars.value[2] = {title: '流月'};
+  if (ln) loadLiuYue(ln.year);
+};
+
+/**
+ * 取某流年的 12 个流月（节气月）。带缓存，同一流年不重复请求。
+ *
+ * **流月与起运流派无关**，所以缓存 key 只用年份，换流派不会失效 —— 这一点与
+ * `daYunListMap`（按流派分组）不同，别顺手也给它加一层流派维度，那只会白多一遍请求。
+ */
+const loadLiuYue = (year: number) => {
+  const cached = liuYueCache.get(year);
+  if (cached) {
+    liuYueList.value = cached;
+    yunPillars.value[2] = {...cached[0].pillar, title: '流月'};
+    return;
+  }
+  liuYueLoading.value = true;
+  getLiuYueList(pillarDto, year).then((r: any) => {
+    // 迟到的响应别覆盖已经切走的流年：以「当前选中的流年」为准再决定要不要落盘
+    const now = activeYun.value?.liuNianList?.[fleetActiveIndex.value];
+    if (now?.year !== year) return;
+    const list = (r?.data || []) as LiuYue[];
+    liuYueCache.set(year, list);
+    liuYueList.value = list;
+    if (list.length) yunPillars.value[2] = {...list[0].pillar, title: '流月'};
+  }).catch((error: unknown) => {
+    // 业务错误已由 axios 拦截器弹出中文提示，这里只兜底日志
+    console.error('流月请求失败：', error);
+  }).finally(() => {
+    liuYueLoading.value = false;
+  });
+};
+
+const checkMonth = (index: number) => {
+  monthActiveIndex.value = index;
+  const m = liuYueList.value[index];
+  if (m?.pillar) yunPillars.value[2] = {...m.pillar, title: '流月'};
 };
 
 /** 某步大运是否「当前所处」—— 用后端算好的索引，前端不重算 */
@@ -1331,6 +1631,25 @@ const isNowLiuNian = (ln: LiuNian) => {
   const v = qiYunView.value;
   if (!v?.now) return false;
   return Number(String(v.now).slice(0, 4)) === ln.year;
+};
+
+/** 把后端的时间串归一成可比较的毫秒数（`2026-10-12T10:00:00` 与带空格的都吃） */
+const timeValue = (v?: string | null) => {
+  if (!v) return NaN;
+  return new Date(String(v).replace('T', ' ').replace(/-/g, '/')).getTime();
+};
+
+/**
+ * 流月里的「今」。
+ *
+ * **必须比时刻，不能比「年月」**：一个流月横跨两个公历月（戌月 10/08 → 11/07），
+ * 11/01 那天的交节月仍是 10 月 —— 拿 `now` 的年月去比会错误地高亮亥月。
+ * （流年的「今年」可以比年份，因为流年就是年份粒度；流月不行。）
+ */
+const isNowLiuYue = (m: LiuYue) => {
+  const now = timeValue(qiYunView.value?.now);
+  if (isNaN(now)) return false;
+  return now >= timeValue(m.startDateTime) && now < timeValue(m.nextTermDateTime);
 };
 
 const isYearDiff = (sectKey: string, year: number) => {
@@ -1466,11 +1785,13 @@ watch(() => route.query, () => {
   if (route.name === 'bazi') applyRouteQuery();
 });
 
-// 切流派：大运/起运是 computed 自动换；yunPillars 是平铺数组，需手动同步一次
+// 切流派：大运/起运是 computed 自动换；yunPillars 是平铺数组，需手动同步一次。
+// 流月**不需要**跟着换流派（它与起运流派无关，同一年 12 个月完全相同），
+// 所以这里不碰 liuYueCache —— 缓存跨流派继续有效。
 watch(sect, (s) => {
   yunActiveIndex.value = 0;
-  fleetActiveIndex.value = 0;
   syncYunPillars(daYunListMap.value[s] || []);
+  checkFleetYear(0);
 });
 </script>
 
@@ -1929,6 +2250,12 @@ watch(sect, (s) => {
  * 1100 − 2×24 = 1052px。若沿用旧稿给每根数据柱固定 165px，
  * 6 柱 + 标签列 = 1066px > 1052px，整表必然横向溢出。
  *
+ * 【2026-10-12 补流月后的变化】数据柱从 6 根（四柱 + 大运 + 流年）变 7 根
+ * （四柱 + 大运 + 流年 + 流月）。7 × 120 + 76 = 916 ≤ 1052，**桌面宽度下仍然不滚动**；
+ * 但 900px 视口（卡片可用宽约 828px）从「刚好不滚」变成「会滚」——
+ * 这是有意的取舍：再压 min-width 到 107 的话，藏干格与神煞格就挤烂了。
+ * 也就是说 .pillar-table 的横向滚动在 900~1000px 区间会真的出现，不是 bug。
+ *
  * 也不能只写 min-width 而不写 flex-basis：那是「宽度由内容决定」的列，
  * 神煞格虽写了 flex-wrap，在没有回绕边界的容器里永远不换行 ——
  * 神煞越多，列被撑得越宽。flex: 1 1 0 把列宽交回容器，
@@ -2090,7 +2417,7 @@ watch(sect, (s) => {
   }
 }
 
-/* ============================ 大运 / 流年时间轴 ============================ */
+/* ============================ 大运 / 流年 / 流月时间轴 ============================ */
 
 .timeline-scroll {
   overflow-x: auto;
@@ -2102,7 +2429,10 @@ watch(sect, (s) => {
   gap: 6px;
   min-width: min-content;
 
-  &.is-liunian .tl-yun {
+  // 流年 / 流月都是 12 格，按 78px 才排得下（12 × 84 = 1008 < 内容区约 1060）。
+  // 换成 86px 就会在桌面宽度上出现横向滚动条，所以这两条时间轴共用同一个宽度。
+  &.is-liunian .tl-yun,
+  &.is-liuyue .tl-yun {
     width: 78px;
   }
 }
@@ -2193,6 +2523,14 @@ watch(sect, (s) => {
 
   .warn {
     color: var(--el-color-warning);
+  }
+
+  // 二级说明：另起一行、再淡一档。
+  // 流月那条补注比大运那条长得多，跟主句挤在同一行会糊成一整片读不出来。
+  .note-sub {
+    display: block;
+    margin-top: 2px;
+    opacity: 0.78;
   }
 }
 
@@ -2694,6 +3032,339 @@ watch(sect, (s) => {
   font-size: 13px;
 }
 
+/* ---------------- 格局成败与救应（v12） ---------------- */
+
+/* 一档一个色阶：成格最正用金、待辅中性用蓝、破而有救用暗金（弱于成格）、
+   破而不救用红（最重的一档）、不论成败用灰。颜色本身就是档位的一层提示，
+   但**文字永远同时给出档位名** —— 只靠颜色表达档位对色觉障碍读者不友好。 */
+.grade-row {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 11px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  background: var(--panel-2);
+  font-size: 13px;
+
+  .grade-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .grade-chip {
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid currentColor;
+    color: var(--text-dim);
+
+    /* 徽章也要跟着档位变色。模板给 .grade-chip 和 .grade-row 都挂了 is-<code>，
+       但只有外层有规则时徽章恒为灰 —— 那样「一眼看出是哪一档」就只剩那根 3px 的左边线。 */
+    &.is-cheng {
+      color: var(--gold);
+    }
+
+    &.is-dai_fu {
+      color: var(--blue);
+    }
+
+    &.is-po_with_rescue {
+      color: var(--gold-2);
+    }
+
+    &.is-po {
+      color: var(--red);
+    }
+
+    &.is-not_applicable {
+      color: var(--text-dim);
+    }
+  }
+
+  .grade-help {
+    font-size: 12px;
+    color: var(--text-faint);
+    border-bottom: 1px dashed var(--line-strong);
+    cursor: help;
+  }
+
+  .grade-summary {
+    color: var(--text-dim);
+    line-height: 1.75;
+  }
+
+  .grade-findings {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .finding-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .finding-role {
+    flex: none;
+    padding: 1px 8px;
+    border-radius: 5px;
+    font-size: 12px;
+    border: 1px solid currentColor;
+
+    &.is-support {
+      color: var(--gold);
+    }
+
+    &.is-break {
+      color: var(--red);
+    }
+
+    &.is-rescue {
+      color: var(--blue);
+    }
+  }
+
+  .finding-label {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+
+  &.is-cheng {
+    border-left-color: var(--gold);
+  }
+
+  &.is-dai_fu {
+    border-left-color: var(--blue);
+  }
+
+  &.is-po_with_rescue {
+    border-left-color: var(--gold-2);
+  }
+
+  &.is-po {
+    border-left-color: var(--red);
+  }
+
+  /* 外格（建禄 / 阳刃 / 专旺）单列一档：它「不论成败」而不是「破了」，
+     所以不能用红色 —— 那是把「另一套体系」误读成「坏了」。 */
+  &.is-not_applicable {
+    border-left-color: var(--line-strong);
+  }
+}
+
+/* 命中的字 + 落点（「酉 月支」）。字重、位轻，让人先看到字再看位置。 */
+.finding-char {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  white-space: nowrap;
+
+  b {
+    color: var(--text);
+    font-size: 14px;
+  }
+
+  em {
+    font-style: normal;
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+}
+
+/* ---------------- 宫位六亲（v12） ---------------- */
+
+.palace-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.palace-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  background: var(--panel-2);
+  font-size: 12px;
+
+  .palace-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .palace-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .palace-pillar {
+    font-size: 12px;
+    color: var(--text-faint);
+  }
+
+  .palace-kin {
+    color: var(--text-dim);
+  }
+
+  .palace-gods {
+    display: flex;
+    gap: 12px;
+    color: var(--text-faint);
+  }
+
+  // 有扰动优先于牵绊：宫同时被冲与被合时，底色要表示「动荡」而不是「牵连」，
+  // 与后端 `palaceClass` 的判序保持一致。
+  &.is-disrupt {
+    border-left-color: var(--red);
+  }
+
+  &.is-bond {
+    border-left-color: var(--blue);
+  }
+}
+
+/* 关系小片：扰动（冲刑害）与牵绊（合会）用不同色，两者含义不同不该混看 */
+.rel-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text-dim);
+  white-space: nowrap;
+
+  &.is-disrupt {
+    color: var(--red);
+    border-color: currentColor;
+  }
+
+  &.is-bond {
+    color: var(--blue);
+    border-color: currentColor;
+  }
+
+  &.is-quiet {
+    color: var(--text-faint);
+    border-style: dashed;
+  }
+}
+
+.star-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.star-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--line-strong);
+  background: var(--panel-2);
+  font-size: 12px;
+
+  .star-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .star-role {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .star-state {
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    color: var(--text-faint);
+    white-space: nowrap;
+  }
+
+  .star-mapping {
+    color: var(--text-faint);
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  .star-gods {
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+
+  // 四档自上而下由实到虚：透干通根最实（金），透干虚浮（暗金），
+  // 通根沉实（蓝），不见最虚（灰）。
+  &.is-both {
+    border-top-color: var(--gold);
+
+    .star-state {
+      color: var(--gold);
+    }
+  }
+
+  &.is-gan {
+    border-top-color: var(--gold-2);
+
+    .star-state {
+      color: var(--gold-2);
+    }
+  }
+
+  &.is-zhi {
+    border-top-color: var(--blue);
+
+    .star-state {
+      color: var(--blue);
+    }
+  }
+
+  &.is-absent {
+    background: transparent;
+  }
+}
+
+.kin-notes {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.85;
+  color: var(--text-dim);
+
+  li + li {
+    margin-top: 5px;
+  }
+
+  // 【宫破星无】/【星宫俱安】那两条是合参的落点，给重点色
+  li.is-key {
+    color: var(--text);
+  }
+}
+
 .pop-detail {
   font-size: 13px;
   line-height: 1.8;
@@ -2712,6 +3383,11 @@ watch(sect, (s) => {
 @media (max-width: 1000px) {
   .two-col {
     grid-template-columns: 1fr;
+  }
+
+  // 六亲星 3 列在中等屏挤成 2 列：六颗星刚好两行，比挤成三列好读
+  .star-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .page {
@@ -2738,6 +3414,12 @@ watch(sect, (s) => {
   .god-grid {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  // 四宫与六亲星同理：窄屏一律单列
+  .palace-grid,
+  .star-grid {
+    grid-template-columns: 1fr;
   }
 
   .pattern-name {
