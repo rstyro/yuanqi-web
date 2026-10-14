@@ -1,0 +1,1 @@
+import{h as e}from"./index-BczpdmBQ.js";const o=t=>e.post("home/pillarData",t,{}),s=(t,r)=>e.post("home/liuYue",t,{params:{year:r}}),i=t=>e.get("region/children",{params:t?{parentCode:t}:{}});export{o as a,s as b,i as g};
