@@ -1,0 +1,121 @@
+/* 排盘页共用样式片段，由各分区组件的 <style scoped> 按需 @use。
+   为什么不做成全局样式表：el-popover 的内容会被 teleport 到 body，
+   弹出层里的类只有「元素自带的 data-v」遇上「同一条 scoped 规则」才命中，
+   全局表挂不上那个 data-v。内容取自拆分前的 home.vue，逐字未改。 */
+
+/* ============================ 大运 / 流年 / 流月时间轴 ============================ */
+
+.timeline-scroll {
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.timeline {
+  display: flex;
+  gap: 6px;
+  min-width: min-content;
+
+  // 流年 / 流月都是 12 格，按 78px 才排得下（12 × 84 = 1008 < 内容区约 1060）。
+  // 换成 86px 就会在桌面宽度上出现横向滚动条，所以这两条时间轴共用同一个宽度。
+  &.is-liunian .tl-yun,
+  &.is-liuyue .tl-yun {
+    width: 78px;
+  }
+}
+
+.tl-yun {
+  flex: 0 0 auto;
+  width: 86px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  padding: 8px 6px;
+  cursor: pointer;
+  transition: all 0.14s;
+  position: relative;
+  text-align: center;
+
+  &:hover {
+    border-color: var(--gold-soft);
+    background: var(--gold-wash);
+  }
+
+  &.is-active {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #fff;
+
+    .tl-years, .tl-age, .tl-gods {
+      color: rgba(255, 255, 255, 0.82);
+    }
+
+    .tl-gz {
+      color: #fff;
+    }
+  }
+
+  &.is-now {
+    box-shadow: 0 0 0 2px var(--gold-wash);
+  }
+
+  &.is-now::after {
+    content: '今';
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 18px;
+    height: 18px;
+    line-height: 18px;
+    border-radius: 50%;
+    background: var(--red);
+    color: #fff;
+    font-size: 10px;
+    text-align: center;
+  }
+
+  .tl-years, .tl-age {
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+
+  .tl-gz {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.3;
+    margin: 2px 0;
+    color: var(--text);
+  }
+
+  .tl-gods {
+    font-size: 11px;
+    color: var(--red);
+    letter-spacing: 0.5px;
+  }
+}
+
+.yun-note {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--text-faint);
+  line-height: 1.8;
+
+  b {
+    color: var(--text-dim);
+  }
+
+  .mono {
+    font-family: var(--mono);
+  }
+
+  .warn {
+    color: var(--el-color-warning);
+  }
+
+  // 二级说明：另起一行、再淡一档。
+  // 流月那条补注比大运那条长得多，跟主句挤在同一行会糊成一整片读不出来。
+  .note-sub {
+    display: block;
+    margin-top: 2px;
+    opacity: 0.78;
+  }
+}

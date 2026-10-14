@@ -1,0 +1,17 @@
+/* 排盘页共用样式片段，由各分区组件的 <style scoped> 按需 @use。
+   为什么不做成全局样式表：el-popover 的内容会被 teleport 到 body，
+   弹出层里的类只有「元素自带的 data-v」遇上「同一条 scoped 规则」才命中，
+   全局表挂不上那个 data-v。内容取自拆分前的 home.vue，逐字未改。 */
+
+.pop-detail {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text-dim);
+  max-height: 380px;
+  overflow-y: auto;
+  word-break: break-word;
+
+  :first-child {
+    margin-top: 0;
+  }
+}

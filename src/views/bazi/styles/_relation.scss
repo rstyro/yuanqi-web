@@ -1,0 +1,74 @@
+/* 排盘页共用样式片段，由各分区组件的 <style scoped> 按需 @use。
+   为什么不做成全局样式表：el-popover 的内容会被 teleport 到 body，
+   弹出层里的类只有「元素自带的 data-v」遇上「同一条 scoped 规则」才命中，
+   全局表挂不上那个 data-v。内容取自拆分前的 home.vue，逐字未改。 */
+
+/* ---------------- 通用关系块 ---------------- */
+
+.relation-block {
+  margin-bottom: 16px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.relation-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+
+  .cnt {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-faint);
+    background: var(--panel-2);
+    border-radius: 8px;
+    padding: 0 6px;
+  }
+
+  .label-hint {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-faint);
+  }
+}
+
+.relation-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.no-relation {
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+/* 命中的字 + 落点（「酉 月支」）。字重、位轻，让人先看到字再看位置。 */
+.finding-char {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  white-space: nowrap;
+
+  b {
+    color: var(--text);
+    font-size: 14px;
+  }
+
+  em {
+    font-style: normal;
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+}

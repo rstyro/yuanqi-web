@@ -1,0 +1,56 @@
+/* 排盘页共用样式片段，由各分区组件的 <style scoped> 按需 @use。
+   为什么不做成全局样式表：el-popover 的内容会被 teleport 到 body，
+   弹出层里的类只有「元素自带的 data-v」遇上「同一条 scoped 规则」才命中，
+   全局表挂不上那个 data-v。内容取自拆分前的 home.vue，逐字未改。 */
+
+/* ============================ 卡片通用 ============================ */
+
+.block {
+  margin-bottom: 16px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+
+  &::before {
+    content: '';
+    width: 3px;
+    height: 14px;
+    border-radius: 2px;
+    background: var(--gold);
+  }
+
+  .hint {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-faint);
+  }
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-faint);
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+  }
+}

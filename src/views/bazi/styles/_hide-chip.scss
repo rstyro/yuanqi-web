@@ -1,0 +1,62 @@
+/* 排盘页共用样式片段，由各分区组件的 <style scoped> 按需 @use。
+   为什么不做成全局样式表：el-popover 的内容会被 teleport 到 body，
+   弹出层里的类只有「元素自带的 data-v」遇上「同一条 scoped 规则」才命中，
+   全局表挂不上那个 data-v。内容取自拆分前的 home.vue，逐字未改。 */
+
+/* ---------------- 藏干小片 ---------------- */
+
+.hide-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text-dim);
+  white-space: nowrap;
+
+  b {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  em {
+    font-style: normal;
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+
+  .via {
+    font-style: normal;
+    font-size: 10px;
+    color: var(--text-faint);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0 4px;
+  }
+
+  .dot {
+    font-style: normal;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gold);
+  }
+
+  // 透出者整体提亮 + 金边，一眼能挑出来
+  &.is-exposed {
+    border-color: var(--gold-soft);
+    background: var(--gold-wash);
+    color: var(--text);
+  }
+
+  &.is-mini {
+    padding: 1px 6px;
+    gap: 3px;
+
+    b {
+      font-size: 13px;
+    }
+  }
+}
