@@ -79,7 +79,7 @@ export interface StreamAskOptions extends FortuneAskParams {
  * {@link NeedLoginError} reject。调用方 catch 到它就该跳登录页。
  */
 export async function streamAsk(options: StreamAskOptions): Promise<void> {
-  const {question, sessionId = '', onEvent, signal} = options;
+  const {question, sessionId = '', birth, onEvent, signal} = options;
 
   // 用户体系的 token 放在名为 token 的头里。
   // 为什么是 token 而不是 Sa-Token 默认的 saToken：StpKit.USER 覆写了
@@ -96,7 +96,9 @@ export async function streamAsk(options: StreamAskOptions): Promise<void> {
       Accept: 'text/event-stream',
       ...(token ? {token} : {}),
     },
-    body: JSON.stringify({question, sessionId}),
+    // birth 只在首轮带（后端收下后写进会话快照）；这里照样原样发，
+    // 不发的话后端拿到的就是 undefined —— 与「没传」同义，不会覆盖成空值。
+    body: JSON.stringify({question, sessionId, birth}),
     signal,
   });
 

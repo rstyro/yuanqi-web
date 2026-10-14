@@ -1557,7 +1557,27 @@ const submitData = () => {
   getPillarInfo();
 };
 
-/** 带着本次排盘的口径跳到 AI 推演页 */
+/**
+ * 带着本次排盘的口径跳到 AI 推演页。
+ *
+ * <p>带过去的东西分两类，缺一不可：
+ * <ul>
+ *   <li>{@code dateTime} / {@code dateType} / {@code sex} / {@code leapMonth} ——
+ *       推演页把它们还原成一句预填的话，AI 从话里抽出来（用户可以直接改那句话）；</li>
+ *   <li>{@code birthPlace} / {@code useTrueSolarTime} / {@code withEquationOfTime} ——
+ *       推演页用不着「读懂」它们，原样塞进请求体的 {@code birth} 字段，
+ *       由后端并进本次会话的口径。这三样是抽取器抽不出来的：
+ *       用户不会说「请按真太阳时排盘」这种话，均时差更是只有页面上才有这个开关。</li>
+ * </ul>
+ *
+ * <p>⚠️ {@code birthPlace} 必须带 —— 后端是<b>按地名</b>去 {@code base_region_geo}
+ * 查经度的（那边是同一张表，查出来与这里的 {@code longitude} 是同一个数）。
+ * 只传经度不传地名的话，AI 侧的上下文就没法说「出生地深圳市（东经 114.06°）」，
+ * 报错时也少一个唯一线索。
+ *
+ * <p>{@code longitude} 仍然要带：推演页刷新/回退到本页时，
+ * 表单要靠它把真太阳时那一行的经度回显出来（见 {@code onMounted} 里的 query 还原）。
+ */
 const goFortune = () => {
   router.push({
     name: 'fortune',
@@ -1566,6 +1586,7 @@ const goFortune = () => {
       sex: pillarDto.sex,
       dateTime: pillarDto.dateTime,
       longitude: pillarDto.longitude ?? undefined,
+      birthPlace: region.picked?.name ?? undefined,
       useTrueSolarTime: pillarDto.useTrueSolarTime ? '1' : undefined,
       withEquationOfTime: pillarDto.withEquationOfTime ? '1' : undefined,
       leapMonth: pillarDto.leapMonth ? '1' : undefined,

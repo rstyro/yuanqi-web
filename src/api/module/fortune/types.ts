@@ -96,11 +96,40 @@ export type FortuneChart = PillarVo;
 
 // ==================== 请求 ====================
 
+/**
+ * 排盘页带过来的排盘口径（对应后端 `PageBirthSpec`）。
+ *
+ * <p>只装<b>抽取器抽不出来</b>的那三项 —— 生日与性别不在这里：它们在用户那句话里
+ * （预填句会带上），而且用户随时可能改那句话，以话为准才不会排出一张他没说过的盘。
+ *
+ * <p>后端会把它并进本会话的生辰快照，所以它不只影响首轮：追问轮重排的仍是同一张盘。
+ */
+export interface PageBirthSpec {
+  /** 出生地名（行政区级联选出来的那个）。后端按它查经度 */
+  birthPlace?: string;
+  /**
+   * 出生地经度（东经为正）。
+   *
+   * <p>与 {@link birthPlace} 不是二选一，而是两条独立的来源：首页那个弹窗跳到 `/bazi`
+   * 时只带经度、不还原级联选择器，于是排盘页里「已选行政区」是空的，那条路上只有这个数可用。
+   */
+  longitude?: number;
+  /** 真太阳时开关 */
+  useTrueSolarTime?: boolean;
+  /** 是否叠加均时差。只在启用真太阳时时才有意义 */
+  withEquationOfTime?: boolean;
+}
+
 export interface FortuneAskParams {
   /** 用户原话 */
   question: string;
   /** 首轮留空，由后端生成并随 done 事件返回 */
   sessionId?: string;
+  /**
+   * 排盘页带过来的口径。<b>只在首轮传</b> —— 后端收下后会写进本会话的生辰快照，
+   * 之后每轮都从快照里读，再传就是重复。
+   */
+  birth?: PageBirthSpec;
 }
 
 /** 解析出来的单个 SSE 事件 */

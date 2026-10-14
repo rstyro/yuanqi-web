@@ -175,12 +175,8 @@
           <template v-if="chart.qiYunView">
             <el-divider content-position="left">大运流转</el-divider>
             <el-descriptions :column="4" size="small" border>
-              <el-descriptions-item label="当前大运">
-                第 {{ chart.qiYunView.currentDaYunIndex }} 步
-              </el-descriptions-item>
-              <el-descriptions-item label="起运年份">
-                {{ chart.qiYunView.currentDaYunStartYear }} 年
-              </el-descriptions-item>
+              <el-descriptions-item label="当前大运">{{ currentDaYunText }}</el-descriptions-item>
+              <el-descriptions-item label="起运年份">{{ qiYunYearText }}</el-descriptions-item>
               <el-descriptions-item label="当前年龄">
                 {{ chart.qiYunView.currentAge }} 岁
               </el-descriptions-item>
@@ -403,13 +399,23 @@ import type {
   FortuneRoundVo,
   FortuneSessionDetailVo,
   FortuneSessionVo,
+  PageBirthSpec,
   PillarCode,
   PillarPayload,
 } from '@/api/module/fortune';
 import {renderMarkdown} from '@/utils/markdown';
 import {goLogin, NeedLoginError} from '@/utils/auth';
 
-const SAMPLE_QUESTION = '我是公历1990年5月20日下午1点30分出生的，性别男，帮我看看整体运势';
+/**
+ * 空态里的示例提问。
+ *
+ * <p>刻意把「出生地」与「按真太阳时排盘」都写进去：这两件事是这个页面最容易被忽略、
+ * 又最影响时柱准不准的口径 —— 出生在西部的人按北京时间排，时柱可能差整整一个时辰。
+ * 示例是用户唯一会照着写的一句话，示范它比写一段说明有用。
+ *
+ * <p>用户真这么说，后端抽取器接得住（「真太阳时」那句在抽取提示词里有专门一条）。
+ */
+const SAMPLE_QUESTION = '我出生在深圳，公历1990年5月20日下午1点30分，男，请按真太阳时排盘，帮我看看整体运势';
 const FOLLOW_SAMPLES = ['为什么判断我有偏财？依据是什么？', '未来两个大运怎么样？'];
 
 /** 四柱的固定顺序。后端是并发推送的，前端必须自己排，否则柱子会跳来跳去 */
@@ -489,6 +495,18 @@ const busy = ref(false);
 const chart = ref<FortuneChart | null>(null);
 const rounds = ref<Round[]>([]);
 
+/**
+ * 排盘页带过来的排盘口径（出生地 / 真太阳时 / 均时差），随首轮请求发给后端。
+ *
+ * <p>它<b>不是一个展示态</b>，所以只在 {@code onMounted} 里从 query 解一次 ——
+ * 之后即使清空输入框、换会话，它也只对「从排盘页过来的第一次提问」有意义。
+ *
+ * <p>为什么不塞进预填句、让 AI 自己读出来：真太阳时与均时差是<b>页面的选择</b>，
+ * 用户从来不会说这句话，全靠模型从我们生成的句子里反读回来太脆 ——
+ * 漏了就是「页面按校正后排、AI 按北京时间排」两张盘，而且不报错。
+ */
+const pageSpec = ref<PageBirthSpec | null>(null);
+
 /** 当前会话的标题。命盘还没出来时，hero 区靠它说明「我现在在哪个会话」 */
 const currentTitle = ref('');
 /** 详情接口说这份命盘是按旧口径排的 —— 提示一句就够，不是错误 */
@@ -555,6 +573,46 @@ const chartColumns = computed(() => {
     label: PILLAR_LABELS[code],
     present: !!vo[PILLAR_KEYS[index] as keyof FortuneChart],
   })).filter((col) => col.present);
+});
+
+/**
+ * 「当前大运」文案。
+ *
+ * <p>`currentDaYunIndex` 有三个取值（见后端 `QiYunView` 字段注释）：
+ * `1..10` 是真实的第 N 步；**`0` 表示还没起运**；**`-1` 表示已走完 10 步（100 年后）**。
+ * 后两个都是哨兵值 —— 直接插值会渲染成「第 0 步 / 第 -1 步」。出生日期是今天的人
+ * 一定落在 `0`（起运总是在出生之后），所以这条几乎必然会被看到。
+ *
+ * <p>未起运时顺手带上「距起运 N 天」——后端 `daysToNextYun` 在这个分支里就是这个含义
+ * （`Long` 被全局序列化成字符串，插值不受影响）。
+ */
+const currentDaYunText = computed(() => {
+  const v = chart.value?.qiYunView;
+  if (!v) return '—';
+  if (v.currentDaYunIndex > 0) return `第 ${v.currentDaYunIndex} 步`;
+  if (v.currentDaYunIndex === 0) return `尚未起运（距起运 ${v.daysToNextYun} 天）`;
+  return '已超出全部大运';
+});
+
+/**
+ * 「起运年份」文案。
+ *
+ * <p>未起运时后端把 `currentDaYunStartYear` 置为哨兵 `-1`，**不能当年份显示**
+ * （否则页面会出现「-1 年」）。那时真正有意义的是「第一步大运从哪一年开始」——
+ * 该流派的摘要里已有现成的 `firstStartYear`。流派的 key 用命盘上的 `sect`，
+ * 取不到时退回摘要里的第一个（与后端 `QiYunViewCalculator` 同样的兜底口径）。
+ *
+ * <p>已超出全部大运（索引 `-1`）时没有任何可说的年份，给 `—`。
+ */
+const qiYunYearText = computed(() => {
+  const vo = chart.value;
+  const v = vo?.qiYunView;
+  if (!v) return '—';
+  if (v.currentDaYunStartYear >= 0) return `${v.currentDaYunStartYear} 年`;
+  if (v.currentDaYunIndex !== 0) return '—';
+  const map = v.sectSummaryMap;
+  const picked = map ? (map[vo?.sect ?? ''] ?? Object.values(map)[0]) : undefined;
+  return picked?.firstStartYear ? `${picked.firstStartYear} 年（尚未起运）` : '尚未起运';
 });
 
 const chartRows = computed(() => {
@@ -654,6 +712,10 @@ function send(preset?: string): void {
   streamAsk({
     question: text,
     sessionId: sessionId.value,
+    // 口径只在「还没有会话」时带。有 sessionId 时后端能从本会话的生辰快照里读到它，
+    // 再传一遍是重复；而且那时用户很可能是在问<b>另一个人</b>，
+    // 页面上那份口径（属于上一个人）不该糊到新那个人身上。
+    birth: sessionId.value ? undefined : (pageSpec.value ?? undefined),
     signal: controller.signal,
     onEvent: (ev) => handleEvent(ev, round),
   })
@@ -1302,6 +1364,9 @@ onMounted(() => {
   // 用户应该自己决定什么时候开始。
   const seed = buildSeedFromQuery();
   if (seed) question.value = seed;
+  // 与预填句同源的「结构化口径」：出生地 / 真太阳时 / 均时差。
+  // 两者一起带，但走的是不同的路 —— 见 readPageSpec 的说明。
+  pageSpec.value = readPageSpec();
 
   mq = window.matchMedia(NARROW_QUERY);
   onViewportChange();
@@ -1311,21 +1376,79 @@ onMounted(() => {
   startPolling();
 });
 
+/** route.query 的值可能是 string | string[] | null，统一成 string */
+function queryValue(v: unknown): string {
+  if (Array.isArray(v)) return String(v[0] ?? '');
+  return v == null ? '' : String(v);
+}
+
 /**
  * 把 URL 上的排盘口径还原成一句可被后端抽取的自然语言。
  *
- * 与排盘页共用同一套参数（dateType / dateTime / sex / leapMonth），
+ * <p>与排盘页共用同一套参数（dateType / dateTime / sex / leapMonth），
  * 所以 AI 抽出来的生辰与刚才看到的那张命盘是同一个。
+ *
+ * <p>出生地也写进句子里 —— 用户看到这句话就知道系统是按哪儿排的盘，
+ * 这是他能核对「地球对不对」的唯一入口（后端另有结构化通道，两处一致、互为兜底）。
+ *
+ * <p><b>「真太阳时」「均时差」刻意不写进句子</b>：那是我们的术语，用户从不说这句话。
+ * 它们走 {@link readPageSpec} 的结构化通道，不指望模型从这句话里反读回来 ——
+ * 反读漏了就是「页面按校正后排、AI 按北京时间排」两张盘，而且一声不吭。
  */
 function buildSeedFromQuery(): string {
-  const pick = (v: unknown): string => (Array.isArray(v) ? String(v[0] ?? '') : v == null ? '' : String(v));
-  const dateTime = pick(route.query.dateTime);
+  const dateTime = queryValue(route.query.dateTime);
   if (!dateTime) return '';
 
-  const isLunar = pick(route.query.dateType) === '2';
-  const sexText = pick(route.query.sex) === '0' ? '女' : '男';
-  const leapText = isLunar && pick(route.query.leapMonth) === '1' ? '（闰月）' : '';
-  return `我出生于${isLunar ? '农历' : '公历'} ${dateTime}${leapText}，性别${sexText}，帮我看看整体运势`;
+  const isLunar = queryValue(route.query.dateType) === '2';
+  const sexText = queryValue(route.query.sex) === '0' ? '女' : '男';
+  const leapText = isLunar && queryValue(route.query.leapMonth) === '1' ? '（闰月）' : '';
+  const place = queryValue(route.query.birthPlace);
+  const placeText = place ? `，出生地${place}` : '';
+  return `我出生于${isLunar ? '农历' : '公历'} ${dateTime}${leapText}，性别${sexText}${placeText}，帮我看看整体运势`;
+}
+
+/**
+ * 从 URL 解出结构化口径，随首轮请求发给后端（请求体的 {@code birth}）。
+ *
+ * <h3>为什么这几样必须结构化传，不能塞进预填句</h3>
+ * <p>预填句要经过一次模型抽取才能变成排盘参数，而抽取器只在用户<b>明说</b>时才认：
+ * <ul>
+ *   <li>「请按真太阳时排盘」—— 用户不会说这种话，不说就永远校验不了时柱；</li>
+ *   <li>「含均时差」—— 抽取器<b>没有这个概念</b>（提示词里没这条），
+ *       整条链路里只有页面上有这个勾选框；</li>
+ *   <li>出生地 / 经度 —— 用户可能说地名，但说不准；经度更是只有页面（行政区级联
+ *       或首页弹窗）才拿得到。</li>
+ * </ul>
+ *
+ * <h3>与预填句的分工</h3>
+ * <p>生日 / 性别只走预填句（用户会改那句话，「以用户的话为准」）；
+ * 这几样只走结构化（用户改不到、也说不清）。后端把两边合流后按同一口径排盘，
+ * 并存进本会话的生辰快照 —— 追问轮重排的仍是同一张盘。
+ *
+ * <h3>为什么经度也要带</h3>
+ * <p>出生地与经度是<b>两条独立的通道</b>：排盘页从行政区级联选出来时两者都有；
+ * 而首页那个弹窗跳到 {@code /bazi} 时不还原级联选择器，排盘页收到的只有经度。
+ * 那条路上若不带经度，后端 {@code applyTrueSolarTime} 会因为「既没地名又没经度」
+ * 而整段跳过 —— 用户明明开了真太阳时开关，AI 这张盘却按北京时间排，正是要修的那个 bug。
+ *
+ * @return 四项全空时返回 {@code null}（不是页面跳过来的，或页面什么都没选）
+ */
+function readPageSpec(): PageBirthSpec | null {
+  // 经度在 URL 里是字符串，转成数再发；非数字（理论上不该出现）一律当没带
+  const lngText = queryValue(route.query.longitude);
+  const longitude = lngText !== '' && !Number.isNaN(Number(lngText))
+      ? Number(lngText)
+      : undefined;
+  const spec: PageBirthSpec = {
+    birthPlace: queryValue(route.query.birthPlace) || undefined,
+    longitude,
+    useTrueSolarTime: queryValue(route.query.useTrueSolarTime) === '1',
+    withEquationOfTime: queryValue(route.query.withEquationOfTime) === '1',
+  };
+  if (!spec.birthPlace && spec.longitude == null && !spec.useTrueSolarTime && !spec.withEquationOfTime) {
+    return null;
+  }
+  return spec;
 }
 
 onUnmounted(() => {
