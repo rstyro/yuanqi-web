@@ -627,8 +627,9 @@ html.dark:root { /* 暗黑 */ --bg: #12141a; --gold: #c9a65c; }
 `src/views/fortune/index.vue`（路由 `/fortune`）。它把后端 `metaphysics-ai-fortune`
 的 SSE 事件铺成界面，接口定义在 `src/api/module/fortune/`。
 
-- 开发态走 `vite.config.ts` 里 `/graph` 的代理打到本机 8801，所以 `.env.dev` 的
-  `VITE_AI_API_BASE` 是 `/`（后端没配 CORS，只能走同源代理）
+- 开发态 `.env.dev` 的 `VITE_API_BASE_URL` 写 `/`，所有请求（JSON、SSE、PDF、`/show` 静态文件）
+  都命中 `vite.config.ts` 里 `server.proxy` 的同源代理，打到 `DEV_PROXY_TARGET`（默认本机 8800）。
+  后端没配 CORS，只能走同源代理；代理前缀漏一个的症状是 404 而不是报错
 - SSE 用原生 `fetch` + `ReadableStream` 自己解析，**不走 axios 实例** ——
   那个实例会加 `_t` 时间戳、按 `code!==200` 抛错、60s 超时，三处都和流式冲突
 - 报告正文的 Markdown 由 `src/utils/markdown.ts` 渲染（自带实现，覆盖有限，见该文件注释）
