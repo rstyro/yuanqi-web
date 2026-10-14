@@ -67,6 +67,37 @@ const routes:Array<RouteRecordRaw> = [     //主路由模块容器
     },
     {
         /**
+         * 详细报告列表。入口在 Header 导航、排盘页与推演页的「详细报告」按钮。
+         *
+         * <p>必须 `requiresLogin`：读的是 `/chat/report/list`，后端 `/chat/**`
+         * 已加进 user-paths，未登录必 401。守卫提前拦一道只是省掉这次注定失败的请求。
+         */
+        path: '/report',
+        name: 'report-list',
+        component: () => import("@/views/report/list.vue"),
+        meta:{
+            title:"详细报告",
+            transition:'animate__fadeIn',
+            requiresLogin: true,
+        }
+    },
+    {
+        /**
+         * 报告详情。生成中逐章渐进展示 + status 轮询；完成后可导出 PDF。
+         *
+         * <p>不带 `backtopBottom`：章节正文虽长，但没有吸底元素，默认 96 即可。
+         */
+        path: '/report/:id',
+        name: 'report-detail',
+        component: () => import("@/views/report/detail.vue"),
+        meta:{
+            title:"报告详情",
+            transition:'animate__fadeIn',
+            requiresLogin: true,
+        }
+    },
+    {
+        /**
          * 登录页。
          *
          * <p>和首页一样是**全屏、不带 Header** 的独立版式（星空背景见

@@ -20,6 +20,13 @@
               @click="goFortune"
           >AI 推演
           </el-button>
+          <el-button
+              v-if="loaded"
+              size="small"
+              :loading="reportCreating"
+              @click="goReport"
+          >详细报告
+          </el-button>
         </div>
       </div>
 
@@ -903,6 +910,9 @@ import {useRoute, useRouter} from 'vue-router';
 import {ElMessage} from 'element-plus';
 import Header from '@/components/Header.vue';
 import {getBaziInfo, getLiuYueList, getRegionChildren} from '@/api/module/bazi';
+import {generateReport} from '@/api/module/fortune';
+import {useUserInfoStore} from '@/store/userInfo';
+import {goLogin} from '@/utils/auth';
 import type {
   BaziQuery,
   Caput,
@@ -1561,6 +1571,61 @@ const goFortune = () => {
       leapMonth: pillarDto.leapMonth ? '1' : undefined,
     },
   });
+};
+
+/* ---- 详细报告（/chat/report/**） ---- */
+
+const userInfoStore = useUserInfoStore();
+/** 「详细报告」建单中的 loading。建单即返回，但那一两秒该给个反馈 */
+const reportCreating = ref(false);
+
+/**
+ * 排盘页一键生成详细报告：拿当前表单口径建单，然后进详情页看后台逐章生成。
+ *
+ * <p>生辰入参与 {@link BaziQuery} 同口径（含出生地与真太阳时开关）——
+ * 后端按它排盘存快照，之后重试/续跑都不重排。
+ *
+ * <p>⚠️ {@code dateTime} 是 {@code yyyy-MM-dd HH:mm:ss}（el-date-picker 的
+ * value-format 定的），与报告接口要的格式一致；别改成 ISO 的 {@code T}。
+ *
+ * <p>未登录先去登录（登完回 /bazi）—— 否则建单请求会吃一个 401，
+ * 拦截器虽然也会跳登录，但那时用户已经白点了一次。
+ */
+const goReport = async () => {
+  if (!userInfoStore.isLoggedIn) {
+    goLogin('/bazi');
+    return;
+  }
+  if (!pillarDto.dateTime) {
+    ElMessage.warning('先录入生辰再生成报告');
+    return;
+  }
+  reportCreating.value = true;
+  try {
+    const res = await generateReport({
+      birth: {
+        dateType: pillarDto.dateType,
+        sex: pillarDto.sex,
+        dateTime: pillarDto.dateTime,
+        leapMonth: pillarDto.leapMonth,
+        username: pillarDto.username,
+        longitude: pillarDto.longitude,
+        birthPlace: region.picked?.name,
+        useTrueSolarTime: pillarDto.useTrueSolarTime,
+        withEquationOfTime: pillarDto.withEquationOfTime,
+      },
+    });
+    // 后端 Long 序列化成字符串，这里本来就是 string，直接当路由参数用
+    const id = res.data;
+    if (id) {
+      router.push({name: 'report-detail', params: {id}});
+    }
+  } catch (e) {
+    // 业务错误（排不出盘等）已由 axios 拦截器弹出中文提示，这里只兜底日志
+    console.error('生成详细报告失败：', e);
+  } finally {
+    reportCreating.value = false;
+  }
 };
 
 /* ---- 大运 / 流年 / 流月 联动 ---- */

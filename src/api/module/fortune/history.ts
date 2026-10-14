@@ -73,8 +73,11 @@ export const deleteSession = (sessionId: string) => {
  * <p>后端同时给了两种写法：{@code filename="report.pdf"}（兼容老浏览器）和
  * {@code filename*=UTF-8''...}（RFC 5987，真正的中文名）。只认后者 ——
  * 前者固定是 {@code report.pdf}，拿它当文件名会把所有报告都存成同一个名字。
+ *
+ * <p>导出给 {@code ./report.ts} 的 PDF 下载复用 —— 同一套后端下载头，
+ * 各写一份解析迟早有一边漏改。
  */
-function filenameFromDisposition(header: string | null): string | null {
+export function filenameFromDisposition(header: string | null): string | null {
   if (!header) return null;
   const m = /filename\*=(?:UTF-8|utf-8)''([^;]+)/.exec(header);
   if (!m) return null;

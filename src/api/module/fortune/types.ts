@@ -230,3 +230,150 @@ export interface PageVo<T> {
   current: number;
   pages: number;
 }
+
+// ==================== 详细报告（/chat/report/**） ====================
+
+/**
+ * 报告主单状态：0=生成中，1=已完成，2=失败。
+ *
+ * <p>与后端 {@code FortuneReport.ReportStatus}、{@code FortuneSession.status}
+ * 同口径 —— 前端只该有一套常量，别在页面里散写 {@code status === 1}。
+ */
+export const REPORT_STATUS = {
+  /** 生成中（含排队）。建单即落库，此刻就是它 */
+  DOING: 0,
+  /** 已完成（全部章节终态） */
+  END: 1,
+  /** 整体失败（建单时排盘失败等；章节级失败见 SECTION_STATUS） */
+  ERR: 2,
+} as const;
+
+/**
+ * 章节状态：0=待生成，1=生成中，2=已完成，3=失败。
+ *
+ * <p>⚠️ 与主单的「2=失败」**刻意不同号**（章节失败是 3）——
+ * 后端注释原话「免得两处看串」。自动重试耗尽后停 3，等用户手动 retry。
+ */
+export const SECTION_STATUS = {
+  TODO: 0,
+  DOING: 1,
+  END: 2,
+  ERR: 3,
+} as const;
+
+/**
+ * 报告主单，对应后端 {@code FortuneReport}。
+ *
+ * <p>⚠️ 响应里<b>没有</b> {@code birthJson} / {@code chartJson}（后端
+ * {@code @JsonIgnore} 挡掉了，列表页一行挂几十 KB 快照纯属浪费）——
+ * 命盘快照只在后端重试时用，前端永远不需要。
+ *
+ * <p>⚠️ 全局 {@code JacksonConfig} 把 {@code Long} 序列化成字符串，
+ * 所以 {@code id} / {@code userId} 是 {@code "3"} 这种，别当 number 用。
+ */
+export interface FortuneReportVo {
+  id: string;
+  userId: string;
+  title: string;
+  /** 八字四柱，空格分隔，如「壬申 丙午 丁卯 己酉」 */
+  ganZhi: string | null;
+  /** 1=男，0=女（注意不是 mini_user 的 1/2） */
+  sex: number | null;
+  /** `yyyy-MM-dd HH:mm:ss` */
+  birthTime: string | null;
+  /** 1=公历，2=农历 */
+  dateType: number | null;
+  leapMonth: number | null;
+  username: string | null;
+  /** 来源会话标识（历史会话一键生成时带上，排盘页新建为空） */
+  sessionId: string | null;
+  status: number;
+  /** 章节总数（流年已展开），建单时算好 */
+  totalSections: number | null;
+  /** 已完成章节数。进度条用 */
+  doneSections: number | null;
+  /** 整体失败原因；章节级失败在节行的 errorMsg 上 */
+  errorMsg: string | null;
+  createTime: string | null;
+  updateTime: string | null;
+}
+
+/** 报告的一章，对应后端 {@code FortuneReportSection} */
+export interface FortuneReportSectionVo {
+  id: string;
+  reportId: string;
+  /** 报告内从 1 递增，决定渲染与导出顺序 */
+  seq: number;
+  /** overview / career / wealth / marriage / health / liunian_2026 … */
+  sectionKey: string;
+  title: string;
+  status: number;
+  /** 章节正文（markdown）。失败/待生成时为 null */
+  content: string | null;
+  retryCount: number | null;
+  /** 本节失败原因（后端截断到 512 字符内） */
+  errorMsg: string | null;
+  elapsedMs: number | null;
+}
+
+/**
+ * 报告详情 —— 主单 + 全部章节（按 seq 升序）。
+ *
+ * <p><b>未生成完也返回</b>：已完成的章节渐进渲染，失败节带 errorMsg。
+ */
+export interface FortuneReportDetailVo {
+  report: FortuneReportVo;
+  sections: FortuneReportSectionVo[];
+}
+
+/**
+ * 轻量轮询结果（2~3 秒打一次）。刻意不带 content 大字段 ——
+ * 每 2 秒拉整份报告正文，流量与序列化开销都荒唐。
+ */
+export interface FortuneReportStatusVo {
+  id: string;
+  title: string;
+  ganZhi: string | null;
+  status: number;
+  totalSections: number | null;
+  doneSections: number | null;
+  /** 当前正在生成的章节标题；全部终态时为 null */
+  currentSectionTitle: string | null;
+  errorMsg: string | null;
+}
+
+/**
+ * 「排盘页新建」入口的生辰入参，对应后端 {@code ReportBirthRequest}。
+ *
+ * <p>字段与排盘页的 {@link BaziQuery} 同口径（dateType / sex / dateTime /
+ * leapMonth / longitude / birthPlace / useTrueSolarTime / withEquationOfTime）。
+ *
+ * <p>⚠️ {@link dateTime} 的格式是 <b>{@code yyyy-MM-dd HH:mm:ss}</b>（空格分隔，
+ * 不是 ISO 的 {@code T}）—— 全局 {@code JacksonConfig} 钉死了这个 pattern，
+ * 与 {@link BaziQuery} 同一口径。发 {@code T} 格式会 503。
+ */
+export interface ReportBirthParams {
+  dateType?: number;
+  /** 1=男，0=女。可空 —— 空则后端按「未提供」处理并在报告里声明 */
+  sex?: number | null;
+  dateTime: string;
+  leapMonth?: boolean;
+  username?: string;
+  longitude?: number | null;
+  /** 出生地名。只用于回显与说明，不参与排盘（真太阳时只用经度） */
+  birthPlace?: string;
+  useTrueSolarTime?: boolean;
+  withEquationOfTime?: boolean;
+}
+
+/**
+ * 「生成详细报告」请求。<b>两个入口二选一</b>：
+ * {@link sessionId}（历史会话一键生成，后端继承当时的盘）或
+ * {@link birth}（排盘页新建）。两个都带以 sessionId 为准。
+ */
+export interface ReportGenerateParams {
+  sessionId?: string;
+  birth?: ReportBirthParams;
+  /** 流年窗口年数，可空（默认取后端配置 = 当前大运十年）。建单时定死 */
+  liuNianYears?: number;
+}

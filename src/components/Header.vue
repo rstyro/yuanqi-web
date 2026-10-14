@@ -111,6 +111,7 @@ const navItems = computed(() => {
   const items: Array<{ name: string; label: string }> = [
     {name: 'bazi', label: '生辰八字'},
     {name: 'fortune', label: 'AI 推演'},
+    {name: 'report-list', label: '详细报告'},
     {name: 'about', label: '关于'},
   ];
   if (!userInfoStore.isLoggedIn && route.name !== 'login') {

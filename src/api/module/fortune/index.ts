@@ -31,6 +31,16 @@ export {REPORT_PDF_PATH, SSE_ASK_PATH} from './constants';
 // 历史会话（普通 JSON 接口，走 axios 实例）。刻意逐个具名导出而不是 `export *` ——
 // history.ts 自己也 `export * from './types'`，两边都用星号会让同一批类型名出现两条导出路径。
 export {listSessions, getSessionDetail, deleteSession, downloadReportPdf} from './history';
+// 详细报告（/chat/report/**）。同上逐个具名导出；report.ts 不重复 export 类型，
+// 类型统一从 ./types 出（本文件第 25 行已 `export * from './types'`）。
+export {
+  generateReport,
+  listReports,
+  getReportDetail,
+  getReportStatus,
+  retryReport,
+  downloadReportPdfById,
+} from './report';
 
 /**
  * 解析出 AI 模块接口的基址（以 / 结尾，可直接拼相对路径）。

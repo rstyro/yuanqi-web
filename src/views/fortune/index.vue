@@ -59,6 +59,16 @@
               </button>
               <button
                   v-if="showText"
+                  class="h-report"
+                  type="button"
+                  title="为这条会话生成详细报告"
+                  :disabled="reportCreatingId === item.sessionId"
+                  @click.stop="genReport(item)"
+              >
+                <el-icon><Reading/></el-icon>
+              </button>
+              <button
+                  v-if="showText"
                   class="h-del"
                   type="button"
                   title="删除这条会话"
@@ -119,6 +129,11 @@
             >
               下载 PDF
             </el-button>
+            <el-tooltip content="流年 × 流月的完整报告，后台逐章生成" placement="bottom">
+              <el-button plain :icon="Reading" @click="router.push({name: 'report-list'})">
+                详细报告
+              </el-button>
+            </el-tooltip>
           </div>
         </section>
 
@@ -360,7 +375,7 @@
  * 因此命盘卡片挂在 {@code rounds} 循环外面。
  */
 import {computed, nextTick, onMounted, onUnmounted, reactive, ref, watch} from 'vue';
-import {useRoute} from 'vue-router';
+import {useRoute, useRouter} from 'vue-router';
 import {ElMessage, ElMessageBox} from 'element-plus';
 import {
   ArrowLeft,
@@ -370,11 +385,13 @@ import {
   Download,
   Plus,
   Promotion,
+  Reading,
 } from '@element-plus/icons-vue';
 import Header from '@/components/Header.vue';
 import {
   deleteSession,
   downloadReportPdf,
+  generateReport,
   getSessionDetail,
   listSessions,
   ROUND_STATUS,
@@ -464,6 +481,7 @@ interface Round {
 }
 
 const route = useRoute();
+const router = useRouter();
 
 const sessionId = ref('');
 const question = ref('');
@@ -965,6 +983,37 @@ async function downloadPdf(): Promise<void> {
     ElMessage.error('下载 PDF 失败：' + (e instanceof Error ? e.message : String(e)));
   } finally {
     pdfDownloading.value = false;
+  }
+}
+
+// ==================== 详细报告（/chat/report/**） ====================
+
+/** 正在建单的那条会话 —— 侧栏按钮转圈用，同时防重复点击 */
+const reportCreatingId = ref('');
+
+/**
+ * 历史会话一键生成详细报告。
+ *
+ * <p>只带 {@code sessionId}：后端从 {@code fortune_session} 继承生辰与
+ * <b>整盘快照</b>（chart_json），报告的章节 ctx 按当时的盘取数，不随引擎升级重排。
+ *
+ * <p>建单即返回 reportId（后端 Long 序列化成字符串），随即进详情页 ——
+ * 那边开始轮询 status，用户看着进度往上走，不用守在本页。
+ */
+async function genReport(item: FortuneSessionVo): Promise<void> {
+  if (reportCreatingId.value) return;
+  reportCreatingId.value = item.sessionId;
+  try {
+    const res = await generateReport({sessionId: item.sessionId});
+    const id = res.data;
+    if (id) {
+      router.push({name: 'report-detail', params: {id}});
+    }
+  } catch (e) {
+    // 业务错误（会话不是你的 / 排不出盘）已由拦截器弹出，这里只兜底日志
+    console.warn('[fortune] 生成详细报告失败', e);
+  } finally {
+    reportCreatingId.value = '';
   }
 }
 
@@ -1571,6 +1620,30 @@ $histBreakW: 1420px;
   &:hover {
     opacity: 1;
     color: var(--red);
+  }
+}
+
+/* 为这条会话生成详细报告。与 .h-del 同构，只是 hover 用金色（建设性动作，
+   不用删除红）；禁用态（正在建单）由 :disabled 兜底，不再显式写样式 */
+.h-report {
+  flex: none;
+  width: 22px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    opacity: 1;
+    color: var(--gold);
+  }
+
+  &:disabled {
+    opacity: 0.15;
+    cursor: default;
   }
 }
 
