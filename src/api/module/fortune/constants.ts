@@ -5,11 +5,11 @@
  * 能指向同一个字符串 —— 代理挂了但代码改了路径，是最难查的一类联调问题。
  */
 
-/** 推演接口路径（相对于 VITE_AI_API_BASE） */
+/** 推演接口路径（相对于 VITE_API_BASE_URL） */
 export const SSE_ASK_PATH = 'graph/ask';
 
 /**
- * 报告 PDF 下载路径模板（相对于 VITE_AI_API_BASE），{@code {id}} 替换为会话 ID。
+ * 报告 PDF 下载路径模板（相对于 VITE_API_BASE_URL），{@code {id}} 替换为会话 ID。
  *
  * <p>PDF 由<b>后端</b>渲染（openhtmltopdf + 内嵌 Noto Sans SC 子集），
  * 前端只负责把二进制存成文件 —— 2026-10-10 起，前端 html2canvas + jsPDF

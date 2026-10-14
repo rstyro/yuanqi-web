@@ -7,8 +7,9 @@ import LoadingBar from './components/LoadingBar.vue';
 import {createPinia} from 'pinia';
 // 持久化存储pinia
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
-import ElementPlus from 'element-plus'
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
+// Element Plus 不在这里全量注册 —— vite 的 ElementPlusResolver 已按需自动导入，
+// 全量 .use(ElementPlus) 会把整个组件库打进主 chunk，按需配置全部作废。
+// 中文语言包改由 App.vue 的 <el-config-provider> 提供。
 import {useUserInfoStore} from '@/store/userInfo'
 import {LOGIN_PATH} from '@/utils/auth'
 // 暗黑模式
@@ -25,7 +26,6 @@ store.use(piniaPluginPersistedstate)
 createApp(App)
     .use(store)
     .use(router)
-    .use(ElementPlus, {locale: zhCn})
     .mount('#app')
 
 const vNode = createVNode(LoadingBar);

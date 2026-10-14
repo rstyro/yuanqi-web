@@ -67,15 +67,31 @@
               >
                 <el-icon><Reading/></el-icon>
               </button>
-              <button
+              <!--
+                每条会话的「更多操作」。
+                为什么是下拉菜单而不是再排两个图标按钮：侧栏只有 150px，
+                三个 22px 图标会把标题区压到放不下八字（「庚午 辛巳 戊子 己未」11 字要断行），
+                所以图标数量必须固定在 2 个 —— 报告按钮常显（高频、一键直达），
+                重命名与删除收进这个菜单。收进菜单还有个额外好处：菜单项带文字，
+                比一个 40% 透明度的小垃圾桶图标好找得多（那正是「找不到删除」的原因）。
+              -->
+              <el-dropdown
                   v-if="showText"
-                  class="h-del"
-                  type="button"
-                  title="删除这条会话"
-                  @click.stop="removeSession(item)"
+                  class="h-more-wrap"
+                  trigger="click"
+                  placement="bottom-end"
+                  @command="(cmd: string) => onSessionCommand(cmd, item)"
               >
-                <el-icon><Delete/></el-icon>
-              </button>
+                <button class="h-more" type="button" title="更多操作">
+                  <el-icon><MoreFilled/></el-icon>
+                </button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="rename" :icon="EditPen">重命名</el-dropdown-item>
+                    <el-dropdown-item command="delete" :icon="Delete" divided>删除会话</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
           </el-tooltip>
         </div>
@@ -379,6 +395,8 @@ import {
   CopyDocument,
   Delete,
   Download,
+  EditPen,
+  MoreFilled,
   Plus,
   Promotion,
   Reading,
@@ -390,6 +408,7 @@ import {
   generateReport,
   getSessionDetail,
   listSessions,
+  renameSession,
   ROUND_STATUS,
   streamAsk,
 } from '@/api/module/fortune';
@@ -1018,6 +1037,64 @@ async function removeSession(item: FortuneSessionVo): Promise<void> {
     }
   } catch (e) {
     console.warn('[fortune] 删除会话失败', e);
+  }
+}
+
+/**
+ * 侧栏那条「更多操作」菜单的派发出口。
+ *
+ * <p>菜单项用 {@code command} 字符串而不是各自绑一个 handler —— 这样模板里只有
+ * 一处回调（还把 item 一起带上），加一项操作只需在菜单里加一行 + 这里加一个分支。
+ */
+function onSessionCommand(cmd: string, item: FortuneSessionVo): void {
+  if (cmd === 'rename') {
+    void renameSessionItem(item);
+  } else if (cmd === 'delete') {
+    void removeSession(item);
+  }
+}
+
+/**
+ * 重命名会话：弹一个输入框 → 调接口 → 就地更新列表。
+ *
+ * <p>只改展示名，所以<b>不等接口回来再刷新整个列表</b>：改完直接把新名字写回那一条。
+ * 这样零闪烁，也不会因为列表按 {@code lastActiveTime} 重排而让刚改的那条跳走
+ * （改名本来就不该影响排序 —— 后端也没动 {@code last_active_time}）。
+ *
+ * <p>当前正打开的会话改名时，页头那句「当前会话 · xxx」也一起换掉，
+ * 否则左栏和页头会显示两个名字，用户会以为改错了对象。
+ */
+async function renameSessionItem(item: FortuneSessionVo): Promise<void> {
+  const fallback = item.ganZhi || item.title || '未命名会话';
+  let next: string;
+  try {
+    const res = await ElMessageBox.prompt('给这条会话起个名字', '重命名会话', {
+      confirmButtonText: '保存',
+      cancelButtonText: '取消',
+      // 默认填当前显示名，用户多数只是想微调
+      inputValue: item.title || fallback,
+      inputValidator: (value: string) => (value && value.trim() ? true : '名称不能为空'),
+      inputErrorMessage: '名称不能为空',
+    });
+    next = (res.value ?? '').trim();
+  } catch {
+    // 用户点了取消。ElMessageBox 用 reject 表达「取消」，不是异常
+    return;
+  }
+  // 没改（或只改了首尾空格）就白跑一趟接口，直接返回
+  if (!next || next === (item.title ?? '')) return;
+  try {
+    const res = await renameSession(item.sessionId, next);
+    if (res.data !== true) {
+      ElMessage.warning('改名没成功，这条会话可能已经不在了');
+      return;
+    }
+    // 后端会按上限截断，这里按同一口径兜一下，免得列表显示的名字和刷新后不一致
+    item.title = next.length > 30 ? next.slice(0, 30) : next;
+    if (item.sessionId === sessionId.value) currentTitle.value = item.title;
+    ElMessage.success('已重命名');
+  } catch (e) {
+    console.warn('[fortune] 重命名会话失败', e);
   }
 }
 
@@ -1726,10 +1803,21 @@ $histBreakW: 1420px;
 }
 
 /**
- * 删除按钮。常显（低透明度）而不是 hover 才出现 ——
- * 手机上根本没有 hover，藏起来就等于没有这个功能。
+ * 「更多操作」触发器的外层（el-dropdown 的根节点）。
+ * 它必须自己 flex: none —— 否则会被当成可压缩项，和标题抢宽度。
  */
-.h-del {
+.h-more-wrap {
+  flex: none;
+}
+
+/**
+ * 「更多操作」按钮（⋯）。常显（低透明度）而不是 hover 才出现 ——
+ * 手机上根本没有 hover，藏起来就等于没有这个功能。
+ *
+ * <p>hover 色刻意<b>不是</b>红：这个按钮点开的是菜单（里面才有删除），
+ * 把它自己染红会让人以为「点它就是删」。
+ */
+.h-more {
   flex: none;
   width: 22px;
   border: none;
@@ -1742,7 +1830,7 @@ $histBreakW: 1420px;
 
   &:hover {
     opacity: 1;
-    color: var(--red);
+    color: var(--text-dim);
   }
 }
 

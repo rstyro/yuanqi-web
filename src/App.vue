@@ -1,5 +1,10 @@
 <template>
-  <router-view #default="{route,Component}">
+  <!--
+    中文语言包。原先在 main.ts 里 .use(ElementPlus, {locale: zhCn}) 全量注册时一并给的，
+    现在组件走按需自动导入，locale 改由这个 Provider 提供（el-pagination 等组件的内置文案靠它）。
+  -->
+  <el-config-provider :locale="zhCn">
+    <router-view #default="{route,Component}">
     <transition :enter-active-class="`animate__animated  ${route.meta.transition}`">
       <component :is="Component"></component>
     </transition>
@@ -15,13 +20,15 @@
          压住 —— 看得见也点不到。没有吸底条的普通长页面用默认值即可。
     -->
     <el-backtop target="#app" :right="28" :bottom="route.meta.backtopBottom || 96"/>
-  </router-view>
+    </router-view>
+  </el-config-provider>
 </template>
 
 <script setup lang="ts">
 
 import 'animate.css';
 import {onMounted, watch} from 'vue';
+import zhCn from 'element-plus/es/locale/lang/zh-cn';
 import {applyTheme, useTheme} from '@/utils/theme';
 
 const {isLight} = useTheme();

@@ -68,6 +68,20 @@ export const deleteSession = (sessionId: string) => {
 };
 
 /**
+ * 重命名会话（只改标题，不动生辰与命盘）。
+ *
+ * <p>返回 {@code data: true} = 改到了；{@code false} = 不存在 / 不是你的。
+ * 名字空白时后端直接回失败（列表里出现一条认不出来的会话，比不让改名更糟）——
+ * 所以调用方在发请求前先 trim 一次，别把纯空格丢过来。
+ *
+ * <p>之所以用 PATCH：它改的是会话的一个字段，不是「拿一份新会话整体替换」。
+ * 请求体里<b>只有 title</b> —— 归属由服务端按 token 判定，前端不传、也传不了。
+ */
+export const renameSession = (sessionId: string, title: string) => {
+  return http.patch<boolean>(`chat/session/${sessionId}`, {title});
+};
+
+/**
  * 解析 {@code Content-Disposition} 里的文件名。
  *
  * <p>后端同时给了两种写法：{@code filename="report.pdf"}（兼容老浏览器）和

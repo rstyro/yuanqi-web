@@ -30,7 +30,7 @@ export * from './types';
 export {REPORT_PDF_PATH, SSE_ASK_PATH} from './constants';
 // 历史会话（普通 JSON 接口，走 axios 实例）。刻意逐个具名导出而不是 `export *` ——
 // history.ts 自己也 `export * from './types'`，两边都用星号会让同一批类型名出现两条导出路径。
-export {listSessions, getSessionDetail, deleteSession, downloadReportPdf} from './history';
+export {listSessions, getSessionDetail, deleteSession, renameSession, downloadReportPdf} from './history';
 // 详细报告（/chat/report/**）。同上逐个具名导出；report.ts 不重复 export 类型，
 // 类型统一从 ./types 出（本文件第 25 行已 `export * from './types'`）。
 export {
@@ -45,14 +45,14 @@ export {
 /**
  * 解析出 AI 模块接口的基址（以 / 结尾，可直接拼相对路径）。
  *
- * <p>开发态 {@code VITE_AI_API_BASE=/}，配合 {@code vite.config.ts} 里
+ * <p>开发态 {@code VITE_API_BASE_URL=/}，配合 {@code vite.config.ts} 里
  * {@code /graph}、{@code /chat} 的代理打到本机 8800 —— 这样既躲开跨域（后端没配 CORS），
  * 前端代码里也不用区分「本地还是网关」。
  *
  * <p>生产态指向网关地址，例如 {@code https://xxx/metaphysics/}。
  */
 export function resolveApiBase(): string {
-  const base: string = import.meta.env.VITE_AI_API_BASE ?? '/';
+  const base: string = import.meta.env.VITE_API_BASE_URL ?? '/';
   return base.endsWith('/') ? base : `${base}/`;
 }
 

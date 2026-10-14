@@ -1,5 +1,5 @@
 // 导入 defineConfig 函数，用于定义 Vite 配置
-import {defineConfig} from 'vite'
+import {defineConfig, loadEnv} from 'vite'
 // 导入 Vue 插件，用于支持 Vue 项目
 import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'
@@ -11,7 +11,15 @@ import IconsResolver from 'unplugin-icons/resolver'
 
 
 // 使用 defineConfig 定义 Vite配置: https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({mode}) => {
+    // 开发态后端地址（metaphysics-admin，本机 8800）。
+    // 只有 vite 进程读这个文件，不会打进前端产物，所以没有 VITE_ 前缀
+    // （加了反而会被内联进 bundle 暴露内网地址）。留空时用下面的默认值。
+    // process.cwd() 是 Node.js 的一个方法，返回当前 Node 进程启动时所在的目录（
+    const env = loadEnv(mode, process.cwd(), '')
+    const proxyTarget = env.DEV_PROXY_TARGET || 'http://127.0.0.1:8800'
+
+    return {
     define: {
         __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: JSON.stringify(false)
     },
@@ -43,23 +51,37 @@ export default defineConfig({
     ],
     server: {
         proxy: {
-            // AI 命理推演的 SSE 接口打到本机 8800（metaphysics-admin）。
-            // 2026-10-09 起该能力已从独立服务 metaphysics-ai-fortune（:8801）
-            // 并入 admin 单体，接口路径 /graph/** 未变，只有端口从 8801 变 8800。
-            // 后端没配 CORS，所以只能走同源代理，前端才敢写相对路径。
-            // 这里的 '/graph' 必须和 src/api/module/fortune/constants.ts 里的
-            // SSE_ASK_PATH 对得上；改了一处忘了另一处，症状是 404 而不是报错。
+            // 开发态所有后端请求都走同源代理（.env.dev 里两个 BASE 都是 '/'）。
+            // 后端没配 CORS，之前的 axios 直连 127.0.0.1:8800 其实一直在裸奔跨域；
+            // 现在 JSON、SSE、静态文件（头像 /show）统一走这里，和线上网关行为一致。
+            //
+            // 这些前缀必须覆盖 src 里所有请求路径的第一段：
+            //   /graph  SSE 推演（对应 fortune/constants.ts 的 SSE_ASK_PATH）
+            //   /chat   历史会话与详细报告（history.ts / report.ts，含 PDF）
+            //   /user   登录、注册、用户信息
+            //   /home   排盘（home/pillarData 等）
+            //   /search 搜索
+            //   /region 行政区数据（首页/排盘页的地区下拉）
+            //   /show   头像等静态文件（utils/asset.ts 拼 BASE 后指向这里）
+            // 漏一个前缀的症状是 404 而不是报错，新增接口前缀时记得回来加。
             //
             // SSE 不需要额外配置：http-proxy 对流式响应是边收边转的，
             // 不会攒到响应结束才发给浏览器。若将来发现「报告一次性蹦出来」，
             // 先怀疑中间多了一层压缩代理，而不是这里。
+            // /graph 与其它前缀是同一个后端，只是长连接要单独放宽超时。
             '/graph': {
-                target: 'http://127.0.0.1:8800',
+                target: proxyTarget,
                 changeOrigin: true,
                 // SSE 是长连接，别让代理提前超时断流
                 timeout: 0,
                 proxyTimeout: 0,
             },
+            '/chat': {target: proxyTarget, changeOrigin: true},
+            '/user': {target: proxyTarget, changeOrigin: true},
+            '/home': {target: proxyTarget, changeOrigin: true},
+            '/search': {target: proxyTarget, changeOrigin: true},
+            '/region': {target: proxyTarget, changeOrigin: true},
+            '/show': {target: proxyTarget, changeOrigin: true},
         },
     },
     resolve: {
@@ -93,5 +115,5 @@ export default defineConfig({
             }
         }
     }
-
+    }
 })
