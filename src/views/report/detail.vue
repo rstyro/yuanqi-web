@@ -67,6 +67,13 @@
           <span v-if="report.createTime">创建于 {{ report.createTime }}</span>
         </div>
 
+        <!-- ================= 命盘 =================
+             正文通篇按柱位说话（「日支」「时上」…），读者手上没有盘就只是一堆术语。
+             这张卡与 PDF 里的命盘段读的是后端同一个快照回放结果，不是前端重排的。 -->
+        <div class="chart-wrap">
+          <ChartCard :chart="chart"/>
+        </div>
+
         <!-- ================= 章节 ================= -->
         <el-card v-for="s in sections" :key="s.id" class="section-card" shadow="never">
           <template #header>
@@ -96,6 +103,7 @@ import {computed, onMounted, onUnmounted, ref} from 'vue';
 import {useRoute} from 'vue-router';
 import {ElMessage} from 'element-plus';
 import Header from '@/components/Header.vue';
+import ChartCard from '@/views/fortune/components/ChartCard.vue';
 import {
   downloadReportPdfById,
   getReportDetail,
@@ -105,6 +113,7 @@ import {
   SECTION_STATUS,
 } from '@/api/module/fortune';
 import type {
+  FortuneChart,
   FortuneReportDetailVo,
   FortuneReportSectionVo,
   FortuneReportStatusVo,
@@ -119,6 +128,8 @@ const reportId = String(route.params.id ?? '');
 const loading = ref(false);
 const report = ref<FortuneReportVo | null>(null);
 const sections = ref<FortuneReportSectionVo[]>([]);
+/** 命盘：后端回放当时存下的整盘快照（与 PDF 的命盘段同源）。排不出盘时为 null，只渲染章节 */
+const chart = ref<FortuneChart | null>(null);
 /** 轮询拿到的轻量状态。只在生成中有值，用来显示「当前在写哪章」 */
 const status = ref<FortuneReportStatusVo | null>(null);
 
@@ -154,6 +165,7 @@ async function loadDetail(): Promise<void> {
     }
     report.value = detail.report;
     sections.value = detail.sections ?? [];
+    chart.value = detail.chart ?? null;
     if (detail.report.status === REPORT_STATUS.DOING) {
       startPolling();
     } else {
@@ -320,6 +332,7 @@ onUnmounted(stopPolling);
 .progress-card,
 .err-alert,
 .report-meta,
+.chart-wrap,
 .section-card {
   max-width: 900px;
 }

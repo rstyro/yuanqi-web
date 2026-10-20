@@ -21,7 +21,7 @@
       <div class="content">
         <FortuneHero :ctx="ctx"/>
 
-        <ChartCard :ctx="ctx"/>
+        <ChartCard :chart="ctx.chart"/>
 
         <FortuneEmpty :ctx="ctx"/>
 

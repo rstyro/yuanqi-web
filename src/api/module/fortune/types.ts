@@ -399,10 +399,22 @@ export interface FortuneReportSectionVo {
  * 报告详情 —— 主单 + 全部章节（按 seq 升序）。
  *
  * <p><b>未生成完也返回</b>：已完成的章节渐进渲染，失败节带 errorMsg。
+ *
+ * <p>{@link chart} 是 2026-10-20 补的：正文 71 节通篇引用柱位（「日支」「时上」…），
+ * 读者手上没有盘就只是一堆术语。后端优先回放当时存下的整盘快照（{@code chart_json}），
+ * 与 PDF 里的命盘段同源同口径 —— <b>不要</b>拿 {@code birthTime} 再调一次排盘接口，
+ * 那会绕过快照，引擎升级过的旧报告会当场换一张盘。
  */
 export interface FortuneReportDetailVo {
   report: FortuneReportVo;
   sections: FortuneReportSectionVo[];
+  /**
+   * 命盘。<b>可能为 null</b>（快照与生辰都排不出盘），此时只渲染章节，不要整页报错。
+   *
+   * <p>和会话详情一样，它标成 {@link FortuneChart} 是因为确实按命盘消费，但字段是
+   * <b>某个历史版本写下的快照</b>，可能比当前契约少 —— 读取一律走容错路径（见 fortuneFormat 的 {@code disp()}）。
+   */
+  chart: FortuneChart | null;
 }
 
 /**

@@ -7,7 +7,14 @@
  * 它产出的是 v-html 用的字符串，和模板无关，可以脱离页面看。
  */
 import {ROUND_STATUS} from '@/api/module/fortune';
-import type {ErrorPayload, PillarCode, PillarPayload, QaCategoryCode, QaPayload} from '@/api/module/fortune';
+import type {
+  ErrorPayload,
+  FortuneChart,
+  PillarCode,
+  PillarPayload,
+  QaCategoryCode,
+  QaPayload,
+} from '@/api/module/fortune';
 import {renderMarkdown} from '@/utils/markdown';
 
 /**
@@ -184,6 +191,105 @@ export function disp(value: any): string {
 export function shortDate(value: any): string {
   const text = disp(value);
   return text === '—' ? text : text.replace(/:00$/, '');
+}
+
+// ==================== 命盘矩阵 ====================
+
+/**
+ * 命盘的「属性 × 柱位」行。
+ *
+ * <p>原先这四 builders 写在 {@code useFortuneState} 里，只有推演页能用。2026-10-20
+ * 报告详情页也要放一张盘（正文 71 节通篇引用柱位，读者手上没盘看不懂），
+ * 而那一页没有会话状态 —— 搬进这层纯函数，两个页面共用同一份口径，
+ * 免得两处各写一遍藏干/神煞的取法而后端改字段时只改到一处。
+ */
+export interface ChartRow {
+  key: string;
+  label: string;
+  cls: string;
+  cells: string[];
+}
+
+/** 命盘矩阵的列（柱位）。某一柱缺失时整列不出现 */
+export interface ChartColumn {
+  key: PillarCode;
+  index: number;
+  label: string;
+  present: boolean;
+}
+
+export function chartColumnsOf(vo: FortuneChart | null | undefined): ChartColumn[] {
+  if (!vo) return [];
+  return PILLAR_ORDER.map((code, index) => ({
+    key: code,
+    index,
+    label: PILLAR_LABELS[code],
+    present: !!vo[PILLAR_KEYS[index] as keyof FortuneChart],
+  })).filter((col) => col.present);
+}
+
+export function chartRowsOf(vo: FortuneChart | null | undefined): ChartRow[] {
+  if (!vo) return [];
+  const at = (index: number) => vo[PILLAR_KEYS[index] as keyof FortuneChart] as any;
+  const cells = (pick: (pillar: any) => string): string[] =>
+    PILLAR_ORDER.map((_code, index) => {
+      const pillar = at(index);
+      return pillar ? pick(pillar) : '—';
+    });
+  const pair = (main: any, god: any) => {
+    const head = disp(main);
+    const tail = god ? disp(god) : '';
+    return tail && tail !== '—' ? `${head} · ${tail}` : head;
+  };
+
+  return [
+    {key: 'ganZhi', label: '干支', cls: 'gz', cells: cells((p) => disp(p.ganZhi))},
+    {key: 'tianGan', label: '天干', cls: '', cells: cells((p) => pair(p.tianGan, p.tianGanGod))},
+    {key: 'diZhi', label: '地支', cls: '', cells: cells((p) => pair(p.diZhi, p.diZhiGod))},
+    {key: 'hideGan', label: '藏干', cls: 'dim', cells: cells((p) => disp(p.hideGanGods))},
+    {key: 'naYin', label: '纳音', cls: 'dim', cells: cells((p) => disp(p.naYin))},
+    {key: 'shenSha', label: '神煞', cls: 'dim ss', cells: cells((p) => disp(p.shenShaList))},
+    {key: 'emptyDie', label: '空亡', cls: 'dim', cells: cells((p) => disp(p.emptyDie))},
+  ];
+}
+
+/**
+ * 「当前大运」文案。
+ *
+ * <p>`currentDaYunIndex` 有三个取值（见后端 `QiYunView` 字段注释）：
+ * `1..10` 是真实的第 N 步；**`0` 表示还没起运**；**`-1` 表示已走完 10 步（100 年后）**。
+ * 后两个都是哨兵值 —— 直接插值会渲染成「第 0 步 / 第 -1 步」。出生日期是今天的人
+ * 一定落在 `0`（起运总是在出生之后），所以这条几乎必然会被看到。
+ *
+ * <p>未起运时顺手带上「距起运 N 天」——后端 `daysToNextYun` 在这个分支里就是这个含义
+ * （`Long` 被全局序列化成字符串，插值不受影响）。
+ */
+export function currentDaYunTextOf(vo: FortuneChart | null | undefined): string {
+  const v = vo?.qiYunView;
+  if (!v) return '—';
+  if (v.currentDaYunIndex > 0) return `第 ${v.currentDaYunIndex} 步`;
+  if (v.currentDaYunIndex === 0) return `尚未起运（距起运 ${v.daysToNextYun} 天）`;
+  return '已超出全部大运';
+}
+
+/**
+ * 「起运年份」文案。
+ *
+ * <p>未起运时后端把 `currentDaYunStartYear` 置为哨兵 `-1`，**不能当年份显示**
+ * （否则页面会出现「-1 年」）。那时真正有意义的是「第一步大运从哪一年开始」——
+ * 该流派的摘要里已有现成的 `firstStartYear`。流派的 key 用命盘上的 `sect`，
+ * 取不到时退回摘要里的第一个（与后端 `QiYunViewCalculator` 同样的兜底口径）。
+ *
+ * <p>已超出全部大运（索引 `-1`）时没有任何可说的年份，给 `—`。
+ */
+export function qiYunYearTextOf(vo: FortuneChart | null | undefined): string {
+  const v = vo?.qiYunView;
+  if (!v) return '—';
+  if (v.currentDaYunStartYear >= 0) return `${v.currentDaYunStartYear} 年`;
+  if (v.currentDaYunIndex !== 0) return '—';
+  const map = v.sectSummaryMap;
+  const picked = map ? (map[vo?.sect ?? ''] ?? Object.values(map)[0]) : undefined;
+  return picked?.firstStartYear ? `${picked.firstStartYear} 年（尚未起运）` : '尚未起运';
 }
 
 export function orderedPillars(round: Round): PillarPayload[] {

@@ -34,13 +34,11 @@ import type {
 import {goLogin, NeedLoginError} from '@/utils/auth';
 import {
   CACHE_LABEL,
-  disp,
   ERROR_HINT,
   orderedPillars,
   parseCategorySections,
   parsePillarTexts,
   PILLAR_FAILED_HINT,
-  PILLAR_KEYS,
   PILLAR_LABELS,
   PILLAR_ORDER,
   splitCacheHits,
@@ -97,82 +95,9 @@ export function useFortuneState(rail: FortuneRail) {
     return question.value.trim() ? '发送（Enter）' : '先写下生辰或要问的事';
   });
 
-  const chartColumns = computed(() => {
-    const vo = chart.value;
-    if (!vo) return [];
-    return PILLAR_ORDER.map((code, index) => ({
-      key: code,
-      index,
-      label: PILLAR_LABELS[code],
-      present: !!vo[PILLAR_KEYS[index] as keyof FortuneChart],
-    })).filter((col) => col.present);
-  });
-
-  /**
-   * 「当前大运」文案。
-   *
-   * <p>`currentDaYunIndex` 有三个取值（见后端 `QiYunView` 字段注释）：
-   * `1..10` 是真实的第 N 步；**`0` 表示还没起运**；**`-1` 表示已走完 10 步（100 年后）**。
-   * 后两个都是哨兵值 —— 直接插值会渲染成「第 0 步 / 第 -1 步」。出生日期是今天的人
-   * 一定落在 `0`（起运总是在出生之后），所以这条几乎必然会被看到。
-   *
-   * <p>未起运时顺手带上「距起运 N 天」——后端 `daysToNextYun` 在这个分支里就是这个含义
-   * （`Long` 被全局序列化成字符串，插值不受影响）。
-   */
-  const currentDaYunText = computed(() => {
-    const v = chart.value?.qiYunView;
-    if (!v) return '—';
-    if (v.currentDaYunIndex > 0) return `第 ${v.currentDaYunIndex} 步`;
-    if (v.currentDaYunIndex === 0) return `尚未起运（距起运 ${v.daysToNextYun} 天）`;
-    return '已超出全部大运';
-  });
-
-  /**
-   * 「起运年份」文案。
-   *
-   * <p>未起运时后端把 `currentDaYunStartYear` 置为哨兵 `-1`，**不能当年份显示**
-   * （否则页面会出现「-1 年」）。那时真正有意义的是「第一步大运从哪一年开始」——
-   * 该流派的摘要里已有现成的 `firstStartYear`。流派的 key 用命盘上的 `sect`，
-   * 取不到时退回摘要里的第一个（与后端 `QiYunViewCalculator` 同样的兜底口径）。
-   *
-   * <p>已超出全部大运（索引 `-1`）时没有任何可说的年份，给 `—`。
-   */
-  const qiYunYearText = computed(() => {
-    const vo = chart.value;
-    const v = vo?.qiYunView;
-    if (!v) return '—';
-    if (v.currentDaYunStartYear >= 0) return `${v.currentDaYunStartYear} 年`;
-    if (v.currentDaYunIndex !== 0) return '—';
-    const map = v.sectSummaryMap;
-    const picked = map ? (map[vo?.sect ?? ''] ?? Object.values(map)[0]) : undefined;
-    return picked?.firstStartYear ? `${picked.firstStartYear} 年（尚未起运）` : '尚未起运';
-  });
-
-  const chartRows = computed(() => {
-    const vo = chart.value;
-    if (!vo) return [];
-    const at = (index: number) => vo[PILLAR_KEYS[index] as keyof FortuneChart] as any;
-    const cells = (pick: (pillar: any) => string): string[] =>
-      PILLAR_ORDER.map((_code, index) => {
-        const pillar = at(index);
-        return pillar ? pick(pillar) : '—';
-      });
-    const pair = (main: any, god: any) => {
-      const head = disp(main);
-      const tail = god ? disp(god) : '';
-      return tail && tail !== '—' ? `${head} · ${tail}` : head;
-    };
-
-    return [
-      {key: 'ganZhi', label: '干支', cls: 'gz', cells: cells((p) => disp(p.ganZhi))},
-      {key: 'tianGan', label: '天干', cls: '', cells: cells((p) => pair(p.tianGan, p.tianGanGod))},
-      {key: 'diZhi', label: '地支', cls: '', cells: cells((p) => pair(p.diZhi, p.diZhiGod))},
-      {key: 'hideGan', label: '藏干', cls: 'dim', cells: cells((p) => disp(p.hideGanGods))},
-      {key: 'naYin', label: '纳音', cls: 'dim', cells: cells((p) => disp(p.naYin))},
-      {key: 'shenSha', label: '神煞', cls: 'dim ss', cells: cells((p) => disp(p.shenShaList))},
-      {key: 'emptyDie', label: '空亡', cls: 'dim', cells: cells((p) => disp(p.emptyDie))},
-    ];
-  });
+  // 命盘矩阵与运年文案（chartColumns / chartRows / currentDaYunText / qiYunYearText）
+  // 2026-10-20 搬进 ChartCard.vue + fortuneFormat 的纯函数：报告详情页也要放同一张盘，
+  // 而那一页没有会话状态可传。搬移只改归属，取数口径一字未动。
 
   // ==================== 左栏与导出的衍生数据 ====================
 
@@ -656,12 +581,18 @@ export function useFortuneState(rail: FortuneRail) {
    * <p>建单即返回 reportId（后端 Long 序列化成字符串），随即进详情页 ——
    * 那边开始轮询 status，用户看着进度往上走，不用守在本页。
    *
-   * <p>先确认再建单：这是侧栏里唯一一个「点一下就起一次真模型批量推理」的按钮，
-   * 而它挨着报告列表那排图标按钮，误触成本是实打实的。确认框在
-   * {@code components/SessionRail.vue}（与改名 / 删除同一套 {@code el-dialog}），
-   * 所以这里不再自己问 —— 进到本函数就是用户已经点过「开始生成」。
+   * <p>先确认再建单：这是全站仅有的两处「点一下就起一次真模型批量推理」的入口，
+   * 误触成本是实打实的，所以两边都把确认框留在组件里（侧栏那本书在
+   * {@code components/SessionRail.vue}，页头那一颗在 {@code components/FortuneHero.vue}，
+   * 与改名 / 删除同一套 {@code el-dialog}），本函数不再自己问 ——
+   * 进到本函数就是用户已经点过「开始生成」。
+   *
+   * <p>入参收成只要 {@code sessionId}：波 D（P56）在页头也挂了一个建单入口
+   * （{@code components/FortuneHero.vue}），它手上只有当前会话的 id，没有列表里那条
+   * {@code FortuneSessionVo}。这一格只带 id 就够 —— 后端本来就是按 {@code sessionId}
+   * 从会话表取生辰与整盘快照的。
    */
-  async function genReport(item: FortuneSessionVo): Promise<void> {
+  async function genReport(item: Pick<FortuneSessionVo, 'sessionId'>): Promise<void> {
     if (reportCreatingId.value) return;
     reportCreatingId.value = item.sessionId;
     try {
@@ -802,10 +733,6 @@ export function useFortuneState(rail: FortuneRail) {
     openSession,
     pdfDownloading,
     sendTip,
-    chartColumns,
-    chartRows,
-    currentDaYunText,
-    qiYunYearText,
     printableRounds,
     canExport,
     send,
