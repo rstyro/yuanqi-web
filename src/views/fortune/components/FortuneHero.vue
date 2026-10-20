@@ -4,7 +4,7 @@
           <div class="seal">命</div>
           <div class="hero-text">
             <h1>AI 命理推演</h1>
-            <p>一句话说出出生时间 —— 命盘先出，四柱次之，解读流式补齐</p>
+            <p>一句话说出出生时间 —— 命盘先出，六类解读一类一类点亮</p>
             <!-- 左栏负责「列表里哪条是高亮」，这里补一句「它叫什么」，两处一起才够定位 -->
             <p v-if="ctx.currentTitle" class="hero-current">当前会话 · {{ ctx.currentTitle }}</p>
           </div>

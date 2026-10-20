@@ -34,7 +34,33 @@
               </div>
             </template>
 
-            <!-- 四柱逐根点亮。后端是并发推的，顺序靠前端排 -->
+            <!-- 首轮：六类问答卡片依次点亮（后端并发跑六类，谁先答完谁先到，顺序靠前端按声明序排）。
+                 历史首轮没有独立字段，是从落库全文按「## 分类名」切回来的，走同一套渲染。 -->
+            <div v-if="qaCards.length" class="qa-list">
+              <div
+                  v-for="group in qaCards"
+                  :key="group.category"
+                  class="qa-card"
+                  :class="{ 'is-failed': !group.ok }"
+              >
+                <div class="qa-head">
+                  <span class="qa-label">{{ group.label }}</span>
+                  <el-tooltip
+                      v-if="group.questions?.length"
+                      :content="group.questions.join(' / ')"
+                      placement="top"
+                  >
+                    <span class="qa-count">{{ group.questions.length }} 问</span>
+                  </el-tooltip>
+                  <el-tag v-if="!group.ok" type="danger" size="small" effect="plain" round>降级</el-tag>
+                </div>
+                <!-- 每类正文是 markdown（提示词要求「问：<原问题>」逐条分节），与报告共用同一渲染器；
+                     渲染器先转义 HTML 再做行内替换，v-html 不会执行模型输出 -->
+                <div class="qa-text markdown" v-html="renderQaText(group)"></div>
+              </div>
+            </div>
+
+            <!-- 2026-10-19 之前的历史首轮：四柱逐根点亮。新首轮不再发 pillar 事件，这块只回放旧数据 -->
             <div v-if="orderedPillars(round).length" class="pillars">
               <div
                   v-for="p in orderedPillars(round)"
@@ -52,31 +78,34 @@
               </div>
             </div>
 
-            <!-- 正文：流式期间走纯文本（每片 delta 重解析一遍 markdown 会把页面拖卡），收尾后再渲染 -->
-            <el-skeleton v-if="round.streaming && !round.report" :rows="4" animated class="report-skeleton"/>
-            <div v-else-if="round.streaming" class="report plain">
-              {{ round.report }}<span class="caret"></span>
-            </div>
-            <template v-else-if="round.report">
-              <!-- 首屏：只有「核心结论」这几条（后端提示词保证 5~8 条、每条带依据+应期） -->
-              <div class="report markdown" v-html="renderHead(round)"></div>
-
-              <!-- 详章：按 metaphysics 仓库 docs/ai-fortune-prompt-tuning.md §三③ 的约定折叠。
-                   模型没按约定输出时 hasDetail() 为 false，下面的块整体不出现 —— 退化成「全展示」 -->
-              <div v-if="hasDetail(round)" class="detail">
-                <button class="detail-toggle" type="button" @click="round.detailOpen = !round.detailOpen">
-                  <el-icon class="detail-chev" :class="{ 'is-open': round.detailOpen }">
-                    <ArrowRight/>
-                  </el-icon>
-                  <span>{{ round.detailOpen ? '收起详细分析' : '展开详细分析' }}</span>
-                  <span class="detail-count">{{ detailCount(round) }} 节</span>
-                </button>
-                <div
-                    v-show="round.detailOpen"
-                    class="report markdown detail-body"
-                    v-html="renderDetail(round)"
-                ></div>
+            <!-- 正文：流式期间走纯文本（每片 delta 重解析一遍 markdown 会把页面拖卡），收尾后再渲染。
+                 首轮不在这条路上 —— 它的正文已经按类进卡片了，这里再渲染一遍就是两倍内容 -->
+            <template v-if="!qaCards.length">
+              <el-skeleton v-if="round.streaming && !round.report" :rows="4" animated class="report-skeleton"/>
+              <div v-else-if="round.streaming" class="report plain">
+                {{ round.report }}<span class="caret"></span>
               </div>
+              <template v-else-if="round.report">
+                <!-- 首屏：只有「核心结论」这几条（历史首轮的提示词保证 5~8 条、每条带依据+应期） -->
+                <div class="report markdown" v-html="renderHead(round)"></div>
+
+                <!-- 详章：按 metaphysics 仓库 docs/bazi-唯一设计与验收-2026-10-15.md 的约定折叠。
+                     模型没按约定输出时 hasDetail() 为 false，下面的块整体不出现 —— 退化成「全展示」 -->
+                <div v-if="hasDetail(round)" class="detail">
+                  <button class="detail-toggle" type="button" @click="round.detailOpen = !round.detailOpen">
+                    <el-icon class="detail-chev" :class="{ 'is-open': round.detailOpen }">
+                      <ArrowRight/>
+                    </el-icon>
+                    <span>{{ round.detailOpen ? '收起详细分析' : '展开详细分析' }}</span>
+                    <span class="detail-count">{{ detailCount(round) }} 节</span>
+                  </button>
+                  <div
+                      v-show="round.detailOpen"
+                      class="report markdown detail-body"
+                      v-html="renderDetail(round)"
+                  ></div>
+                </div>
+              </template>
             </template>
 
             <el-alert
@@ -94,18 +123,21 @@
 
 <script setup lang="ts">
 /**
- * 一轮问答：提问气泡 + 阶段标签 + 四柱逐根点亮 + 报告（首屏卡片化 + 详章折叠）。
+ * 一轮问答：提问气泡 + 阶段标签 + 首轮六类问答卡片 / 历史四柱回放 + 追问正文（详章折叠）。
  *
  * <p>{@code round} 由父级 v-for 传入，其余状态走 ctx；详章展开与否存在 round 自己身上。
  */
+import {computed} from 'vue';
 import {ArrowRight, CopyDocument} from '@element-plus/icons-vue';
 import {
   fmtElapsed,
   hasDetail,
   orderedPillars,
+  orderedQa,
   renderDetail,
   renderHead,
   renderPillarText,
+  renderQaText,
   stageState,
   stagesOf,
   stageTagType,
@@ -117,6 +149,14 @@ import type {FortuneCtx} from '../composables/useFortuneCtx';
 const props = defineProps<{ctx: FortuneCtx; round: Round}>();
 const ctx = props.ctx;
 const round = props.round;
+
+/**
+ * 首轮的分类卡片，按六大类声明序排好。
+ *
+ * <p>后排在这里而不是模板里：这个数组在一张卡片的渲染里被用了三次（判空、遍历、
+ * 每类的问答数），而事件是按完成序到达的 —— 排一次和排三次不是一回事。
+ */
+const qaCards = computed(() => orderedQa(round));
 </script>
 
 <style scoped lang="scss">
@@ -211,7 +251,124 @@ const round = props.round;
   color: var(--text-faint);
 }
 
-/* 四柱 */
+/* ==================== 首轮六类问答卡片 ==================== */
+
+/**
+ * 一类一张、纵向排，不给并排网格。
+ *
+ * 每类正文是 3 问 × 100~200 字，压进 minmax(210px,1fr) 那种窄栏会把整段变成一竖条，
+ * 读起来比原来的四柱卡片更累 —— 这里的宽度是给「一段结论」用的。
+ */
+.qa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.qa-card {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--gold-soft);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px 13px;
+  animation: rise 0.36s ease both;
+
+  &.is-failed {
+    border-left-color: var(--red);
+    opacity: 0.72;
+  }
+}
+
+.qa-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.qa-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+}
+
+/* 这一类答了哪几问：悬停看原文，正文里已经有「问：」分节，占版面没必要 */
+.qa-count {
+  font-size: 11px;
+  line-height: 1.7;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-faint);
+}
+
+.qa-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.85;
+  color: var(--text-dim);
+  word-break: break-word;
+}
+
+/* 卡片里的 markdown：整行宽度但篇幅短，标题与间距比报告区收一档。
+   写成 .qa-text.markdown 双类，特异性压过下面的 .markdown 同名规则 */
+.qa-text.markdown {
+  :deep(h1),
+  :deep(h2),
+  :deep(h3),
+  :deep(h4),
+  :deep(h5),
+  :deep(h6) {
+    font-size: 13.5px;
+    margin: 14px 0 5px;
+    padding-left: 0;
+    border-left: none;
+    color: var(--text);
+  }
+
+  :deep(h1:first-child),
+  :deep(h2:first-child),
+  :deep(h3:first-child) {
+    margin-top: 0;
+  }
+
+  :deep(p) {
+    margin: 0 0 8px;
+  }
+
+  :deep(p:last-child) {
+    margin-bottom: 0;
+  }
+
+  :deep(ul),
+  :deep(ol) {
+    margin: 0 0 8px;
+    padding-left: 20px;
+  }
+
+  :deep(blockquote) {
+    margin: 0 0 8px;
+    padding: 4px 12px;
+  }
+
+  :deep(table) {
+    font-size: 12.5px;
+    margin: 0 0 8px;
+  }
+
+  :deep(th),
+  :deep(td) {
+    padding: 4px 8px;
+  }
+
+  :deep(hr) {
+    margin: 12px 0;
+  }
+}
+
+/* 四柱（只回放 2026-10-19 之前的历史首轮） */
 .pillars {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));

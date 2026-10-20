@@ -1,7 +1,7 @@
 /**
  * AI 命理推演接口类型。
  *
- * 契约以后端 {@code top.lrshuai.admin.fortune.fortune.FortuneSse} 为准，
+ * 契约以后端 {@code top.lrshuai.admin.fortune.sse.FortuneSse} 为准，
  * 改后端事件时记得回来同步这里。
  */
 import type {PillarVo, QiYunView} from "@/api/module/bazi/types";
@@ -14,7 +14,7 @@ export type {QiYunView};
 
 export const SSE_STAGE = 'stage';
 export const SSE_CHART = 'chart';
-export const SSE_PILLAR = 'pillar';
+export const SSE_QA = 'qa';
 export const SSE_DELTA = 'delta';
 export const SSE_DONE = 'done';
 export const SSE_ERROR = 'error';
@@ -33,7 +33,7 @@ export interface StagePayload {
 
 // ==================== cache ====================
 
-/** extract=生辰抽取缓存, first=首轮四柱+报告缓存, followup=追问缓存 */
+/** extract=生辰抽取缓存, first=首轮六类问答缓存, followup=追问缓存 */
 export type CacheLayer = 'extract' | 'first' | 'followup';
 
 export interface CachePayload {
@@ -42,11 +42,51 @@ export interface CachePayload {
   hit: boolean;
 }
 
-// ==================== pillar ====================
+// ==================== qa（首轮的「一类问答」） ====================
 
-/** 柱位编码，与后端 PILLAR_ORDER 一致 */
+/**
+ * 六大类的分类码，与后端 {@code QuestionCategory} 枚举名逐字一致。
+ *
+ * <p>把它当<b>提示而不是约束</b>用：类型写成 {@code QaCategoryCode | string}，
+ * 后端加一类是改枚举与库里那列、不发前端版本，所以认不出的码要能照样显示
+ * （标题用载荷里的 {@code label}，次序排到最后）。按码值写死行为的话，
+ * 新增那一类会整张卡片消失，而且不报错。
+ */
+export type QaCategoryCode =
+  | 'SHIYE_CAIXUN'
+  | 'HUNYIN_GANQING'
+  | 'JIATING_LIUQIN'
+  | 'DAYUN_LIUNIAN'
+  | 'RENSHENG_DASHI'
+  | 'JIANKANG_XINGGE';
+
+export interface QaPayload {
+  category: QaCategoryCode | string;
+  /** 分类中文名（事业财运 / 婚姻感情 …），直接当卡片标题，前端不必自己维护映射 */
+  label: string;
+  /** 这一类三问命中的意图并集，{@code +} 连接（如 {@code SHIYE+CAIYUN}）。只在调试与埋点时用 */
+  intent: string;
+  /** 这一类出场的问题原文，按类内权重降序（通常 3 条，库里该类不足 3 条就更少） */
+  questions: string[];
+  /** 这一类的回答正文（Markdown，三问合在一次调用里）。done 之后再拼一次会得到两倍正文 */
+  text: string;
+  /** false = 这一类超时或失败，text 是占位文案。失败一类不该让另外五类看不见 */
+  ok: boolean;
+}
+
+// ==================== 柱位（只给历史行用） ====================
+
+/** 柱位编码，与后端四柱表格的列序一致（{@code chart} 事件里没有柱位概念） */
 export type PillarCode = 'year' | 'month' | 'day' | 'hour';
 
+/**
+ * 一柱的分析结论 —— 现在<b>只从历史行来</b>，不再是一个 SSE 事件。
+ *
+ * <p>2026-10-19 首轮改成「按六大类并发问答」后，后端删了 {@code pillar} 事件与四柱分析
+ * 那四次调用（设计文档 §6.1 / P26），新首轮的 {@code fortune_round.pillar_json} 恒为空。
+ * 但这个形状还要留着读<b>改造之前那批历史行</b>：那些文本是当时真花四次模型调用换来的，
+ * 页面按原样回放，不拿命盘重算 —— 与后端 PDF 侧读同一份留档是同一条口径。
+ */
 export interface PillarPayload {
   pillar: PillarCode;
   /** 中文名：年柱 / 月柱 / 日柱 / 时柱 */
@@ -70,11 +110,15 @@ export interface DonePayload {
   /** ISO-8601 */
   finishedAt: string;
   /**
-   * 报告完整正文。
+   * 本轮完整正文。
    *
-   * <p>渲染请只用 delta 拼接 —— 这个字段是给「落库 / 非流式客户端 / 断线后取全文」用的。
-   * 前端在 done 时<b>整体替换</b>（而不是追加）已拼好的正文，这样既不会得到两倍正文，
-   * 又能在 delta 丢包时纠正过来。
+   * <p>首轮的正文是<b>六个分类拼起来的一份</b>，每节以「## 分类中文名」起头 ——
+   * 历史详情页就按这个标题把全文切回一张张卡片（所以库里不必另存一份结构化数据）。
+   *
+   * <p>渲染请只用 {@code qa} 事件（首轮）或 {@code delta}（追问）——
+   * 这个字段是给「落库 / 非流式客户端 / 断线后取全文」用的。
+   * 追问轮在 done 时拿它<b>整体替换</b>（而不是追加）已拼好的正文，
+   * 这样既不会得到两倍正文，又能在 delta 丢包时纠正过来。
    */
   text: string;
 }
@@ -143,7 +187,7 @@ export interface FortuneEventMap {
   [SSE_STAGE]: StagePayload;
   [SSE_CACHE]: CachePayload;
   [SSE_CHART]: FortuneChart;
-  [SSE_PILLAR]: PillarPayload;
+  [SSE_QA]: QaPayload;
   [SSE_DELTA]: DeltaPayload;
   [SSE_DONE]: DonePayload;
   [SSE_ERROR]: ErrorPayload;
@@ -207,16 +251,22 @@ export interface FortuneRoundVo {
   sessionId: string;
   /** 轮次序号，同一会话内从 1 递增 */
   seq: number;
-  /** 1=追问轮（跳过四柱），0=首轮 */
+  /** 1=追问轮（复用上一轮的盘与生辰，只跑那一句回答），0=首轮 */
   followUp: number;
   question: string;
-  /** 报告 / 回答正文。失败轮是 null */
+  /**
+   * 回答正文。失败轮是 null。
+   *
+   * <p>首轮的这一份是<b>六个分类拼起来的连续文本</b>，每节以「## 分类中文名」起头 ——
+   * 详情页按它切回卡片（见 fortuneFormat 的 {@code parseCategorySections}）。
+   */
   answer: string | null;
   /**
-   * 首轮四柱结论（柱位编码 → 文本）的 JSON 字符串，追问轮为 null。
+   * 首轮四柱结论（柱位编码 → 文本）的 JSON 字符串。
    *
-   * <p>它是 LLM 的产物而非算出来的，丢了就只能再花 4 次模型调用 ——
-   * 所以必须原样存、原样读，<b>不要</b>拿命盘去重算四柱文案。
+   * <p>2026-10-19 起<b>新轮次恒为 null</b>（首轮改成六类问答，四柱分析那一步整个删了）。
+   * 这个列与这里的读取路径只为<b>改造之前的历史行</b>留着 ——
+   * 那些文本是当时真花四次模型调用换来的，原样回放，不要拿命盘去重算。
    */
   pillarJson: string | null;
   /** 命中的应答缓存层，逗号分隔：extract / first / followup */

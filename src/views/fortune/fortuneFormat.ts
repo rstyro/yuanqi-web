@@ -7,7 +7,7 @@
  * 它产出的是 v-html 用的字符串，和模板无关，可以脱离页面看。
  */
 import {ROUND_STATUS} from '@/api/module/fortune';
-import type {ErrorPayload, PillarCode, PillarPayload} from '@/api/module/fortune';
+import type {ErrorPayload, PillarCode, PillarPayload, QaCategoryCode, QaPayload} from '@/api/module/fortune';
 import {renderMarkdown} from '@/utils/markdown';
 
 /**
@@ -35,6 +35,39 @@ export const STAGES = [
   {key: 'summary', label: '解读'},
 ];
 
+/**
+ * 六大类的展示序 —— 与后端 {@code QuestionCategory} 的<b>声明序</b>逐字一致。
+ *
+ * <p>后端并发跑六类，事件按「谁先答完」到达；落库的全文与 {@code done} 却按声明序拼。
+ * 卡片这里也按声明序排，用户看到的次序才和复制走的全文一致，同一张盘两次进来也不会换位 ——
+ * 与柱子那套「固定槽位」是同一条理由：乱序点亮看着像 bug。
+ */
+export const CATEGORY_ORDER: QaCategoryCode[] = [
+  'SHIYE_CAIXUN',
+  'HUNYIN_GANQING',
+  'JIATING_LIUQIN',
+  'DAYUN_LIUNIAN',
+  'RENSHENG_DASHI',
+  'JIANKANG_XINGGE',
+];
+
+/**
+ * 分类中文名 → 码值。
+ *
+ * <p>只在做历史回放时用：库里那行 {@code answer} 是一段连续文本，节标题只有中文名
+ * （后端 {@code renderFirstRound} 就写了一行「## 中文名」），要靠这张表把节归回卡片次序。
+ * 表里的值抄自后端枚举的 {@code label}，改了那边不改这边，历史会话的卡片会全排到最后 ——
+ * 不影响能看见内容，所以是可接受的软失败，新会话不受影响。
+ */
+export const CATEGORY_BY_LABEL: Record<string, QaCategoryCode> = {
+  事业财运: 'SHIYE_CAIXUN',
+  婚姻感情: 'HUNYIN_GANQING',
+  家庭六亲: 'JIATING_LIUQIN',
+  大运流年: 'DAYUN_LIUNIAN',
+  人生大势: 'RENSHENG_DASHI',
+  健康性格: 'JIANKANG_XINGGE',
+};
+
 export const CACHE_LABEL: Record<string, string> = {
   extract: '抽取缓存',
   first: '报告缓存',
@@ -58,10 +91,11 @@ export const ERROR_HINT: Record<string, string> = {
 /**
  * 后端「这一柱没成功」的降级文案特征串。
  *
- * <p>{@code fortune_round.pillar_json} 里只有 {@code {柱位: 文本}}，没有独立的成功标记 ——
- * 降级柱存进去的就是后端 {@code FortunePipeline.PILLAR_FAILED_TEXT} 那句话。
- * 只能靠特征串反推，这也决定了判据要<b>宽</b>：认不出来就按正常柱渲染。
- * 反过来做的话，后端把那句话改一个字，满屏「降级」标记就成了新的 bug。
+ * <p>只用在<b>历史行的四柱卡</b>上（新首轮不再产生 {@code pillar_json}）：
+ * {@code fortune_round.pillar_json} 里只有 {@code {柱位: 文本}}，没有独立的成功标记 ——
+ * 降级柱存进去的就是后端当时的占位句。只能靠特征串反推，
+ * 这也决定了判据要<b>宽</b>：认不出来就按正常柱渲染。
+ * 反过来做的话，那句话与老数据稍有出入就满屏「降级」标记，比少个标记糟得多。
  */
 export const PILLAR_FAILED_HINT = '该柱分析超时或失败';
 /** 一轮问答的界面状态 */
@@ -69,7 +103,15 @@ export interface Round {
   question: string;
   /** stage 名 → 状态 */
   stage: Record<string, string>;
-  /** 按柱位放的固定槽位，避免并发到达时柱子乱序 */
+  /**
+   * 首轮的六类问答，<b>按到达顺序</b>存。
+   *
+   * <p>渲染一律走 {@code orderedQa()}（按分类声明序排），这里不预排 ——
+   * 后端并发跑六类、谁先答完先推谁，push 的顺序就是真实到达顺序，
+   * 而卡片次序是口径，得由 {@code CATEGORY_ORDER} 一处决定。
+   */
+  qa: QaPayload[];
+  /** 按柱位放的固定槽位。<b>只有历史行会有值</b>（2026-10-19 起后端不再产生四柱分析） */
   pillars: (PillarPayload | undefined)[];
   report: string;
   error: ErrorPayload | null;
@@ -150,6 +192,78 @@ export function orderedPillars(round: Round): PillarPayload[] {
       .filter((p): p is PillarPayload => !!p);
 }
 
+/**
+ * 后端「这一类没答上」的占位文案特征串。
+ *
+ * <p>和 {@link PILLAR_FAILED_HINT} 同一个道理，也只用在<b>历史回放</b>上：
+ * 事件里的 {@code ok} 是现成的成功标记，但落库全文里只有这段占位文本 ——
+ * 切回卡片时只能靠特征串反推。判据要<b>宽</b>：认不出来就按正常卡渲染。
+ */
+export const QA_FAILED_HINT = '这一类本轮没能答上';
+
+/** 首轮的卡片序：按分类声明序排，认不出的码排到最后（到达序保持不动） */
+export function orderedQa(round: Round): QaPayload[] {
+  const rank = (code: string) => {
+    const index = CATEGORY_ORDER.indexOf(code as QaCategoryCode);
+    return index < 0 ? CATEGORY_ORDER.length : index;
+  };
+  // Array.sort 是稳定排序：认不出码值的那几张同秩，于是保持到达序 —— 「谁先亮」还在
+  return [...round.qa].sort((a, b) => rank(a.category) - rank(b.category));
+}
+
+/**
+ * 把首轮落库的全文切回卡片 —— 历史详情页读的就是这一条。
+ *
+ * <p>后端的 {@code renderFirstRound} 每类一节，节标题逐字是「## 分类中文名」，
+ * 节之间空一行。这里<b>不</b>按「问：」行切：那是模型输出的一部分，
+ * 少写一句、换个写法都会切歪，而标题行是服务端拼的、格式稳。
+ *
+ * <p>认不出的标题（后端加了一类还没同步这里、或模型自己写了个二级标题）
+ * 连正文一起并回<b>上一张</b>卡片 —— 内容多一节看得见，比整节丢掉好。
+ * 一段都没有标题（改造前那批自由报告、追问的回答）返回空数组，调用方按纯文本渲染。
+ */
+export function parseCategorySections(answer: string): QaPayload[] {
+  if (!answer) return [];
+  const groups: QaPayload[] = [];
+  let current: {code: QaCategoryCode | string; label: string; body: string[]} | null = null;
+  for (const line of answer.split('\n')) {
+    const hit = /^[ \t]*##[ \t]*(.+?)[ \t]*$/.exec(line);
+    const label = hit?.[1]?.trim() ?? '';
+    const code = label ? CATEGORY_BY_LABEL[label] : undefined;
+    if (hit && code) {
+      if (current) groups.push(toQa(current));
+      current = {code, label, body: []};
+      continue;
+    }
+    if (current) current.body.push(line);
+  }
+  if (current) groups.push(toQa(current));
+  return groups;
+}
+
+function toQa(section: {code: QaCategoryCode | string; label: string; body: string[]}): QaPayload {
+  const text = section.body.join('\n').trim();
+  // 问题原文没单独入库（在模型正文里的「问：<原问题>」行），从那里捞回来只为卡片副标题好看；
+  // 捞不到就当没有，卡片照样有正文
+  const questions = text
+      .split('\n')
+      .map((line) => /^[ \t]*问：[ \t]*(.+?)[ \t]*$/.exec(line)?.[1]?.trim())
+      .filter((x): x is string => !!x);
+  return {
+    category: section.code,
+    label: section.label,
+    intent: '',
+    questions,
+    text,
+    ok: !text.includes(QA_FAILED_HINT),
+  };
+}
+
+/** 一类问答的正文：与报告同一个渲染器（含转义）。一类的文本一次到位，不存在流式重解析的顾虑 */
+export function renderQaText(group: QaPayload): string {
+  return renderMarkdown(group.text);
+}
+
 /** 追问轮只跑 summary，抽取与排盘是复用上一轮的，别把它们画成「等待中」 */
 export function stagesOf(round: Round) {
   return round.followUp ? STAGES.filter((s) => s.key === 'summary') : STAGES;
@@ -170,16 +284,19 @@ export function stageTagType(round: Round, key: string): 'success' | 'warning' |
   return 'info';
 }
 
-// ==================== 「核心结论 + 详细分析」两段切分 ====================
+// ==================== 「核心结论 + 详细分析」两段切分（只服务历史数据）====================
 
 /**
  * 详章分隔标题。
  *
- * <p>约定的原文是<b>逐字</b> {@code ## 详细分析}（见后端 {@code FortuneSummarizer} 的
- * 类注释与 {@code docs/ai-fortune-prompt-tuning.md}）。这里刻意放宽到「1~6 级标题都认、
- * 前后空格都容忍」，只认那四个字 —— 因为这个正则的失效方式是<b>静默</b>的：
- * 一旦没匹配上，页面就退化成「整篇平铺」，没有任何报错，很容易被当成「折叠功能没做」。
- * 宁可放宽匹配，也不要匹配不上。
+ * <p>2026-10-19 起后端提示词里<b>不再有</b>这一节了：首轮改成六类问答卡片，
+ * 追问也不再用「核心结论 + 详细分析」那套骨架。所以这里只剩一个用途 ——
+ * 回放改造前落库的那些轮次，格式约定当时是逐字 {@code ## 详细分析}。
+ * 不删的理由和 {@link PILLAR_FAILED_HINT} 一样：历史即历史，删了它们就退化成整篇平铺。
+ *
+ * <p>刻意放宽到「1~6 级标题都认、前后空格都容忍」，只认那四个字 ——
+ * 因为这个正则的失效方式是<b>静默</b>的：一旦没匹配上，页面就退化成「整篇平铺」，
+ * 没有任何报错，很容易被当成「折叠功能没做」。宁可放宽匹配，也不要匹配不上。
  *
  * <p>不用 {@code g} 标志：这里每次都只找<b>第一个</b>（模型万一又写了一个，后面的算详章内容）。
  */
@@ -232,7 +349,7 @@ export function renderHead(round: Round): string {
   return renderMarkdown(rest) + `<div class="vgrid">${cards}</div>` + extraHtml;
 }
 
-// ---- 核心结论卡片化的解析（只认后端 SUMMARIZE_USER 写死的行格式，见 metaphysics 仓库 FortunePrompts）----
+// ---- 核心结论卡片化的解析（只认旧版汇总提示词写死的行格式；该模板已随 2026-10-19 首轮改造删除）----
 
 /** 四块行：`**事业：平** ｜ 依据：… ｜ 应期：…`（编号可有可无）。方向限定 顺/平/逆 单字。 */
 export const RE_VERDICT =

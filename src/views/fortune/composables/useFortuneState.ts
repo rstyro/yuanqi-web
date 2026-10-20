@@ -29,7 +29,7 @@ import type {
   FortuneSessionDetailVo,
   FortuneSessionVo,
   PageBirthSpec,
-  PillarPayload,
+  QaPayload,
 } from '@/api/module/fortune';
 import {goLogin, NeedLoginError} from '@/utils/auth';
 import {
@@ -37,6 +37,7 @@ import {
   disp,
   ERROR_HINT,
   orderedPillars,
+  parseCategorySections,
   parsePillarTexts,
   PILLAR_FAILED_HINT,
   PILLAR_KEYS,
@@ -178,11 +179,11 @@ export function useFortuneState(rail: FortuneRail) {
   /**
    * 可以进预览 / PDF 的轮次。
    *
-   * <p>滤掉流式中的那一轮（半成品），也滤掉既没正文又没四柱的空轮次。
+   * <p>滤掉流式中的那一轮（半成品），也滤掉既没正文又没卡片的空轮次。
    * 失败轮如果留下了部分正文，仍然要导 —— 用户看到过的东西就该能带走。
    */
   const printableRounds = computed(() =>
-    rounds.value.filter((r) => !r.streaming && (!!r.report || orderedPillars(r).length > 0)),
+    rounds.value.filter((r) => !r.streaming && (!!r.report || r.qa.length > 0 || orderedPillars(r).length > 0)),
   );
 
   const canExport = computed(() => printableRounds.value.length > 0);
@@ -200,12 +201,13 @@ export function useFortuneState(rail: FortuneRail) {
     // 必须 reactive()，不能是普通对象。
     // ref([]) 只把**数组本身**变成响应式：push 一个普通对象进去，数组存的是原始对象，
     // 而模板读到的却是它的响应式代理 —— 于是后面 handleEvent 里对 round 的每一次
-    // 赋值（stage / report / pillars）都绕过了代理，不触发重渲染。
+    // 赋值（stage / report / qa）都绕过了代理，不触发重渲染。
     // 症状很隐蔽：busy 与 chart 会触发重渲染，所以骨架屏、命盘卡片都正常出现，
-    // 但「四柱逐根点亮」和「报告打字机」全程不动，直到 finally 里 busy=false 才一次性糊上来。
+    // 但「分类卡片依次点亮」和追问的打字机全程不动，直到 finally 里 busy=false 才一次性糊上来。
     const round = reactive<Round>({
       question: text,
       stage: {},
+      qa: [],
       pillars: [],
       report: '',
       error: null,
@@ -214,8 +216,8 @@ export function useFortuneState(rail: FortuneRail) {
       elapsed: 0,
       startedAt: performance.now(),
       followUp: isFollowUp,
-      // 默认收起：首屏留给「核心结论」，详章是备查用的。
-      // 想让详章默认展开，把这里改成 true 即可 —— 折叠与否只是展示，不影响报告内容。
+      // 默认收起：详章是备查用的。改造后的首轮没有这一段（正文按类进卡片），
+      // 这个开关只对追问和历史首轮生效。
       detailOpen: false,
     });
     rounds.value.push(round);
@@ -292,8 +294,8 @@ export function useFortuneState(rail: FortuneRail) {
         chart.value = ev.data as FortuneChart;
         break;
 
-      case 'pillar':
-        upsertPillar(round, ev.data as PillarPayload);
+      case 'qa':
+        appendQa(round, ev.data as QaPayload);
         break;
 
       case 'delta':
@@ -303,7 +305,8 @@ export function useFortuneState(rail: FortuneRail) {
       case 'done':
         if (ev.data?.sessionId) sessionId.value = ev.data.sessionId;
         // 全文为准，且是整体替换而非追加 —— 这样既不会得到两倍正文，
-        // 又能在 delta 丢包（断线重连、粘包）时把结果纠正过来
+        // 又能在 delta 丢包（断线重连、粘包）时把结果纠正过来。
+        // 首轮的卡片另有 qa 事件，这里这份只用于复制与「断线后补全」，不再拼进界面
         if (ev.data?.text) round.report = ev.data.text;
         // 服务端已经把这一轮说完了，界面立刻定稿，不等连接关闭
         settle(round);
@@ -318,15 +321,17 @@ export function useFortuneState(rail: FortuneRail) {
     scrollToBottom();
   }
 
-  /** 四根柱子是并发推的，按柱位放进固定槽位 */
-  function upsertPillar(round: Round, payload?: PillarPayload): void {
-    if (!payload?.pillar) return;
-    const index = PILLAR_ORDER.indexOf(payload.pillar);
-    if (index < 0) {
-      round.pillars.push(payload);
-      return;
-    }
-    round.pillars[index] = payload;
+  /**
+   * 收到一类的答案：原样追加。
+   *
+   * <p>六类是并发跑的，谁先答完先到，所以这里<b>不排序、不去重</b>：
+   * 次序由 {@code orderedQa()} 在渲染时按分类声明序排，
+   * 而后端已经用「先到先得」的闸门保证一类只推一次（迟到的那一路会被丢掉）。
+   * 在这里再排一次就会有两份口径，将来改哪一处都会和另一处对不上。
+   */
+  function appendQa(round: Round, payload?: QaPayload): void {
+    if (!payload?.category || !payload.text) return;
+    round.qa.push(payload);
   }
 
   /**
@@ -496,13 +501,17 @@ export function useFortuneState(rail: FortuneRail) {
    * 一条落库的轮次 → 页面状态。
    *
    * <p>还原的是已经定稿的轮次，所以 stage 直接标完成态，不走「等待中」的骨架。
-   * 四柱结论文本是 LLM 的产物、逐字存在 {@code pillarJson} 里 —— 只解析，不重算。
+   * 首轮的分类问答卡片没有独立字段 —— 它就是落库全文本身，
+   * 按每节的 {@code ## 分类名} 切回来（见 {@code parseCategorySections}）。
+   * 只有 2026-10-19 之前的历史首轮才有 {@code pillarJson}，那是当时四柱分析的产物，
+   * 逐字存、只解析、不重算。
    */
   function fromRoundVo(row: FortuneRoundVo): Round {
     const failed = row.status === ROUND_STATUS.FAIL;
     const round = reactive<Round>({
       question: row.question ?? '',
       stage: {},
+      qa: [],
       pillars: [],
       report: row.answer ?? '',
       error: row.errorCode
@@ -523,6 +532,10 @@ export function useFortuneState(rail: FortuneRail) {
       round.stage.extract = 'done';
       round.stage.calc = 'done';
       round.stage.summary = failed ? 'failed' : 'done';
+    }
+
+    if (!round.followUp) {
+      round.qa.push(...parseCategorySections(row.answer ?? ''));
     }
 
     const texts = parsePillarTexts(row.pillarJson);
