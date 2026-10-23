@@ -1,5 +1,5 @@
 import {reactive} from 'vue';
-import {useBaziForm} from './useBaziForm';
+import {useBaziForm} from '@/views/shared/composables/useBaziForm';
 import {useBaziChart} from './useBaziChart';
 
 /**

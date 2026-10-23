@@ -110,6 +110,7 @@ const activeIndex = computed(() => route.name as string | undefined);
 const navItems = computed(() => {
   const items: Array<{ name: string; label: string }> = [
     {name: 'bazi', label: '生辰八字'},
+    {name: 'ziwei', label: '紫微斗数'},
     {name: 'fortune', label: 'AI 推演'},
     {name: 'report-list', label: '详细报告'},
     {name: 'about', label: '关于'},

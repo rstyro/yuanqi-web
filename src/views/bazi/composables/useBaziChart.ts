@@ -19,7 +19,7 @@ import type {
   StructureView,
 } from '@/api/module/bazi/types';
 import {fmt, getShortGod, replaceNewlinesWithBr, timeValue} from '../baziFormat';
-import type {BaziForm} from './useBaziForm';
+import type {BaziForm} from '@/views/shared/composables/useBaziForm';
 
 /* ==========================================================================
  * 视图形状（后端字段 → 页面用的结构）

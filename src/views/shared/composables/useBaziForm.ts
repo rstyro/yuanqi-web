@@ -1,7 +1,7 @@
 import {computed, reactive, ref} from 'vue';
 import {getRegionChildren} from '@/api/module/bazi';
 import type {BaziQuery, RegionVo} from '@/api/module/bazi/types';
-import {equationOfTimeMinutes, formatDateTime} from '../baziFormat';
+import {equationOfTimeMinutes, formatDateTime} from '../date';
 
 /**
  * 排盘表单的状态：录入项、出生地级联、真太阳时预览。

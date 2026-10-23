@@ -62,7 +62,7 @@ import {generateReport} from '@/api/module/fortune';
 import {useUserInfoStore} from '@/store/userInfo';
 import {goLogin} from '@/utils/auth';
 import {useBaziCtx} from './composables/useBaziCtx';
-import BaziForm from './components/BaziForm.vue';
+import BaziForm from '@/views/shared/components/BaziForm.vue';
 import SummaryBar from './components/SummaryBar.vue';
 import QiYunCard from './components/QiYunCard.vue';
 import SectCompareCard from './components/SectCompareCard.vue';

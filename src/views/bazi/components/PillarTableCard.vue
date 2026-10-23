@@ -139,7 +139,7 @@ const ctx = props.ctx;
 </script>
 
 <style scoped lang="scss">
-@use '../styles/card-chrome';
+@use '@/views/shared/styles/card-chrome';
 @use '../styles/pop-detail';
 
 /* ============================ 命盘表 ============================

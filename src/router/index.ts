@@ -50,6 +50,54 @@ const routes:Array<RouteRecordRaw> = [     //主路由模块容器
         }
     },
     {
+        /**
+         * 紫微斗数排盘。与八字页是两个体系、两个页面（2026-10-21 拍板「紫微与八字分开，
+         * 由用户自己比对」），所以这里各排各的，对照靠页头的「八字排盘对照」按钮带同一份生辰跳过去。
+         *
+         * <p>不带 `requiresLogin`：接口是 `/home/ziwei/**`，与八字排盘同一个免登录前缀 ——
+         * 它不读库也不落库，返回的是「同样生辰任何人都会得到」的那张盘，没有归属问题。
+         */
+        path: '/ziwei',
+        name: 'ziwei',
+        component: () => import("@/views/ziwei/home.vue"),
+        meta:{
+            title:"紫微斗数",
+            transition:'animate__fadeInUpBig'
+        }
+    },
+    {
+        /**
+         * 紫微详细报告列表。入口在紫微页的「详细报告」按钮。
+         *
+         * 必须 requiresLogin：读的是 `/chat/ziwei/report/list`，`/chat/**`
+         * 在后端 user-paths 里；守卫提前拦一道只是省掉这次注定失败的请求。
+         */
+        path: '/ziwei/report',
+        name: 'ziwei-report-list',
+        component: () => import("@/views/ziwei/report/list.vue"),
+        meta:{
+            title:"紫微详细报告",
+            transition:'animate__fadeIn',
+            requiresLogin: true,
+        }
+    },
+    {
+        /**
+         * 紫微报告详情。生成中逐章渐进展示 + status 轮询；完成后可导出 PDF。
+         *
+         * 静态段 `/ziwei/report` 必须排在参数段之前，否则 `/ziwei/report`
+         * 会被当成 id（vue-router 虽按权重匹配，但顺序仍是排查时的第一线索）。
+         */
+        path: '/ziwei/report/:id',
+        name: 'ziwei-report-detail',
+        component: () => import("@/views/ziwei/report/detail.vue"),
+        meta:{
+            title:"紫微报告详情",
+            transition:'animate__fadeIn',
+            requiresLogin: true,
+        }
+    },
+    {
         path: '/fortune',
         name: 'fortune',
         component: () => import("@/views/fortune/index.vue"),

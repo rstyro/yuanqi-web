@@ -111,9 +111,29 @@
 </template>
 
 <script setup lang="ts">
-import type {BaziCtx} from '../composables/useBaziCtx';
+import type {UnwrapNestedRefs} from 'vue';
+import type {BaziForm as BaziFormModel} from '../composables/useBaziForm';
 
-const props = defineProps<{ctx: BaziCtx}>();
+/**
+ * 这份录入表单要的**最小字段集**，不是「八字页的整份视图模型」。
+ *
+ * 表单里一个八字概念都没有（姓名 / 性别 / 历法 / 出生时间 / 出生地 / 真太阳时 / 闰月），
+ * 所以紫微页也复用它 —— 同一个人在同一时刻的生辰，两个体系必须填出同一个数。
+ * 若把 prop 声明成 BaziCtx，第二个页面就得假造一份四柱状态才能编译过，
+ * 那是为了复用而增加的耦合，与本意相反。
+ *
+ * `submitData` 是唯一一个「动作」：各页给它自己的排盘请求。
+ */
+type FormCtx = Pick<UnwrapNestedRefs<BaziFormModel>,
+    'showForm' | 'loading' | 'pillarDto' | 'region'
+    | 'tstActive' | 'tstCorrectedText' | 'tstOffsetText' | 'tstSourceText' | 'tstIsApprox'
+    | 'disabledFutureDate'
+    | 'onProvinceChange' | 'onCityChange' | 'onDistrictChange'> & {
+  /** 各页自己的提交动作：八字提交排盘，紫微提交排盘 + 运限 */
+  submitData: () => void;
+};
+
+const props = defineProps<{ctx: FormCtx}>();
 const ctx = props.ctx;
 </script>
 

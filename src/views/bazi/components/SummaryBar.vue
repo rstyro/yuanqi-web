@@ -49,7 +49,7 @@ const ctx = props.ctx;
 </script>
 
 <style scoped lang="scss">
-@use '../styles/tst-tag';
+@use '@/views/shared/styles/tst-tag';
 
 /* ============================ 概要条 ============================ */
 
